@@ -1,0 +1,3 @@
+FILE_PATH	UNIQUE_ID	NAME	GENOME	FASTQ_FILE 	CONDITION
+/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/test_input/bams/uniq_bams	SRR6830273	CLL7	hg38	/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/test_input/fastq_files/SRR6830273_1.fastq.gz::/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/test_input/fastq_files/SRR6830273_2.fastq.gz	YES
+/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/test_input/bams/uniq_bams	SRR6830274	CLL11	hg38	/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/test_input/fastq_files/SRR6830274_1.fastq.gz::/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/test_input/fastq_files/SRR6830274_2.fastq.gz	YES

@@ -1,0 +1,3 @@
+FILE_PATH	LIB_SIZE	UNIQUE_ID	NAME	CONDITION
+/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/test_input/reads	137901842	SRR6830273	NM33	YES
+/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/test_input/reads	65593516	SRR6830274	NM112	YES
