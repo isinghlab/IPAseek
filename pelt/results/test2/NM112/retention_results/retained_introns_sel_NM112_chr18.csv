@@ -1,0 +1,4 @@
+"","seqnames","start","end","width","strand","exon.anno","entrez.id","exon.anno2","exon.anno3","utr3.end","cds.start","cds.end","split_col","num_col","intron","medCVG_intron","medCVG_up","ratio_up","medCVG_down","ratio_down"
+"1","chr18","13117644","13124631","6988","+","cds,intron","55125","cds.utr3,intron,intron.utr3","intron","0","13124487","13124529","55125_cds,55125_intron","cds_46,intron_46,intron_47","intron44","6","7","0.857142857142857","3","2"
+"2","chr18","35990596","35993101","2506","-","intron","55197","intron.utr3","intron","0","0","0","55197_intron","intron_9","intron8","2","7","0.285714285714286","2","1"
+"3","chr18","79951031","79951580","550","-","intron","80148","intron","intron","0","0","0","80148_intron","intron_1","intron1","28","23","1.21739130434783","56","0.5"
