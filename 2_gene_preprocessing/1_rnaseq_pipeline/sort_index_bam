@@ -1,0 +1,8 @@
+
+for in in *.bam; do sample_name=`echo $i | awk -F "." '{print $1}'`; samtools sort -@ 7 $i >  ${sample_name}.sorted.bam ; done
+
+
+for in in *.bam; do sample_name=`echo $i ; done
+
+
+for i in *.bam; do sample_name=`echo $i | awk -F "." '{print $1}'`; samtools sort -@ 7 $i ${sample_name}.sorted; done
