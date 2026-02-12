@@ -1,6 +1,5 @@
-
-library(GenomicAlignments)  
-library(GenomicFeatures)    
+library(GenomicAlignments)
+# library(GenomicFeatures)    
 library(dplyr)             
 library(tidyr)              
 library(data.table)         
@@ -10,7 +9,11 @@ library(scales)
 
 # Function to calculate IPA usage metrics and submit SLURM jobs for parallel processing
 calc_ipa_usage <- function(input.data.path, wd, atlas_name) {
-  
+# 
+  # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_GSE114922_uniq.txt"
+  # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/"
+  # atlas_name <- "GSE114922"
+
   # Set up SLURM job submission and log directories
   slurm.files.dir <- file.path(wd, "pelt", "slurm_submission_ipa_usage")
   logs.files.dir <- file.path(wd, "pelt", "logs_ipa_usage")
@@ -21,11 +24,18 @@ calc_ipa_usage <- function(input.data.path, wd, atlas_name) {
 
   # Read sample metadata file
   data.input <- read.delim(input.data.path, sep = "\t", header = TRUE)
-  sampleNames <- as.character(data.input$NAME)
 
+  sampleNames <- as.character(data.input$NAME)
+  
+  # sampleNames <- c("WT_REP3", "WT_REP8",  "MUT_REP15", "MUT_REP14")
+  
   # Process each sample in parallel via SLURM
   sapply(sampleNames, function(sample) {
     
+    # sample <- "WT_REP3"
+    res_file <- paste0(wd, "/pelt/results/", atlas_name, "/", atlas_name, "_", sample, "_ipa_usage_atlas.csv")
+    if(!file.exists(res_file)){
+      
     #  Path Configuration 
     filePath <- data.input[data.input$NAME == sample, ]$FILE_PATH
     reads.dir <- file.path(filePath, paste0(sample, "_reads.rds"))
@@ -38,6 +48,7 @@ calc_ipa_usage <- function(input.data.path, wd, atlas_name) {
     # Define IPA atlas and library size paths
     ipa_atlas_path <- paste0(wd, "/pelt/results/", atlas_name, "/", atlas_name, "_full_ipa_atlas_conf.RDS")
     library_size <- read.table(paste0(wd, "/pelt/results/", atlas_name, "/", sample, "_library_size"))$V1
+    
 
     #  Job Configuration Object 
     paths <- data.frame(
@@ -78,18 +89,23 @@ calc_ipa_usage <- function(input.data.path, wd, atlas_name) {
       c(
         "#!/bin/bash",
         paste("#SBATCH --job-name=", sample, "_ipa_usage", sep = ""),
-        "#SBATCH --time=05:00:00",
-        "#SBATCH --mem=56G",
-        "#SBATCH --ntasks=16",
+        "#SBATCH --time=10:00:00",
+        "#SBATCH --mem=28G",
+        "#SBATCH --ntasks=1",
         paste("#SBATCH --output=", logs.files.dir, "/", sample, "_ipa_usage", sep = ""),
         paste("Rscript --vanilla", script.name)
       ),
       con = bash.file.location
     )
     
-    # Submit job
-    system(paste("sbatch", bash.file.location))
-    print(paste0("Job submitted for sample: ", sample))
+    # Submit the job
+    job_output <- system(paste0("sbatch ", bash.file.location))
+    
+    # Extract only the job ID(s)
+    job_id <- regmatches(job_output, regexpr("\\d+", job_output))[[1]]
+    write(job_id, "current_jobs.log", append = TRUE)
+    # print(paste("SLURM submission successful for:", sample))
+    print(paste0("Job submitted for sample: ", sample))}
   })
 }
 
@@ -104,7 +120,7 @@ ipa_usage <- function(paths){
     sample          <- paths$sample             # Sample name
     ipa_atlas_path  <- paths$ipa_atlas          # Path to confident IPA atlas (RDS)
     atlas_name      <- paths$ipa_atlas_name     # Atlas name identifier
-    library_size    <- paths$library_size       # Library size (for TPM normalization)
+    library_size    <- paths$library_size       # Library size (for RPKM normalization)
     wd              <- paths$wd                 # Working directory
 
     # Source external script with required functions for UTR3 and CDS calculations
@@ -118,8 +134,11 @@ ipa_usage <- function(paths){
 
     # Split the atlas into a list of GRanges objects (one per event)
     ipa_atlas <- split(ipa_atlas, as.factor(ipa_atlas))
+    
+    # ipa_atlas <- head(ipa_atlas, 100)
 
     # For each IPA event, calculate CDS information using the external function
+    library(parallel)
     ipa_atlas <- lapply(ipa_atlas, calc_cds, wd)
 
     # Flatten the list back to a single GRanges object
@@ -157,18 +176,19 @@ ipa_usage <- function(paths){
     ipa_atlas$ipa_width <- width(ipa_atlas)
     ipa_atlas$cds_width <- width(cds_atlas)
 
-    print(paste("TPM calculation"))
+    print(paste("RPKM calculation"))
 
-    # Calculate TPM (Transcripts Per Million) for IPA and CDS regions
+    # Calculate RPKM for IPA and CDS regions
     ipa_atlas_df <- as.data.frame(ipa_atlas) %>%
-        mutate(
-            ipa_tpm = ((ipa_reads / ipa_width) * library_size) / 1000000,
-            cds_tpm = ((cds_reads / cds_width) * library_size) / 1000000
-        )
+      mutate(
+        ipa_rpkm = (ipa_reads * 1e9) /(ipa_width * as.numeric(library_size)) ,
+        cds_rpkm = (cds_reads * 1e9) /(cds_width * as.numeric(library_size)) 
+      )
+    
 
     print(paste("IPA usage"))
-    # Calculate IPA usage as the fraction of IPA TPM over total (IPA + CDS) TPM
-    ipa_atlas_df$cds_ipa_usage <- (ipa_atlas_df$ipa_tpm / (ipa_atlas_df$ipa_tpm + ipa_atlas_df$cds_tpm))
+    # Calculate IPA usage as the fraction of IPA RPKM over total (IPA + CDS) RPKM
+    ipa_atlas_df$cds_ipa_usage <- (ipa_atlas_df$ipa_rpkm / (ipa_atlas_df$ipa_rpkm + ipa_atlas_df$cds_rpkm))
 
     print(paste("Saving for : ", sample))
     # Save the final annotated data frame as a CSV file for downstream analysis

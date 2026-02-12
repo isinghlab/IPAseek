@@ -18,6 +18,8 @@ merge_cpts <- function(input.data.path, wd, atlas_name) {
 
    # Iterate over each sample and perform merging
    sapply(sampleNames, function(sample_nam) {
+     
+     # sample_nam <- "Monocyte_REP5"
 
       # Construct the path to the directory containing changepoint results for this sample
       cpt.loc <- paste0(wd, "/pelt/results/", atlas_name, "/", sample_nam, "/filter_cpts_results/")

@@ -16,7 +16,7 @@ findCoverage <- function(GG.locs, result.dir.path) {
 
   # Load the genome annotation file with error handling
   rdsSource <- tryCatch({
-    readRDS(paste0(wd, "/1_intron_preprocessing/1_flatten_genome/hg38_annotated_numbered_cds.rds"))
+    readRDS(paste0(wd, "/1_intron_preprocessing/1_flatten_genome/hg38/hg38_annotated_numbered_cds.rds"))
   }, error = function(e) {
     stop(paste("Failed to read genome annotation:", e$message))
   })
@@ -125,6 +125,12 @@ findCoverage <- function(GG.locs, result.dir.path) {
 
 
 findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, GG.locs) {
+# 
+#   covbp_dt <- calCoverage
+# sample_nam <- sample_nam
+# retention.files.dir <- retention.files.dir
+# chr <- chr
+# GG.locs <- GG.locs
   # Start the system time to calculate the processing time
   start_time <- Sys.time()
 
@@ -161,14 +167,30 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
       stop(paste("Failed to read library size file:", e$message))
     })
 
-    # Calculate TPM. The tail and head are used to find the start and end pos of the features which are then used to calculate length
-    covbp_dt <- covbp_dt %>% group_by(names) %>% mutate(tpm = ((coverage / (tail(start, 1) - head(start, 1))) * library_size) / 1000000)
+    # Calculate RPKM. The tail and head are used to find the start and end pos of the features which are then used to calculate length
+    # covbp_dt <- covbp_dt %>% group_by(names) %>% mutate(tpm = ((coverage / (tail(start, 1) - head(start, 1))) * library_size) / 1000000)
+ 
+    covbp_feature_rpkm <- covbp_dt %>%
+      group_by(names) %>%
+      summarise(
+        total_coverage = sum(coverage, na.rm = TRUE),
+        feature_length = as.numeric(abs(max(start) - min(start)) + 1),
+        library_size = unique(library_size)
+      ) %>%
+      mutate(
+        rpkm = (total_coverage * 1e9) / (library_size * feature_length)
+      )
+    
+
+    covbp_dt <- covbp_dt %>%
+      mutate(
+        rpkm = (coverage * 1e9) / (library_size * 1)
+      )
+
+
 
     ####################### Filter 1: check if 3 reads spanning upstream downstream exon intron junction #############################
     print("filter1")
-
-    # junction_count_up<-covbp_dt %>% group_by(names) %>% summarize(junction_count_up=head(coverage,1))
-    # junction_count_down<-covbp_dt %>% group_by(names) %>% summarize(junction_count_down=tail(coverage,1))
 
     # Get the number of junction reads. The strand argument is used to perform different ops depending on which strand the feature is on
     junction_count_up <- covbp_dt %>% group_by(names) %>% reframe(junction_count_up = ifelse(as.character(strand) == "+", tail(coverage, 1), head(coverage, 1)))
@@ -178,8 +200,6 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     dwn_cds_junction <- unique(junction_count_up[!grepl("down", junction_count_up$names), ])
     up_cds_junction <- unique(junction_count_down[!grepl("up", junction_count_down$names), ])
 
-    # dwn_cds_junction<-junction_count_down[!grepl("up",junction_count_up$names) , ]
-    # up_cds_junction<-junction_count_up[!grepl("down",junction_count_down$names) , ]
 
     # Add a column group which groups the features from up or downstream into groups
     sp_nam <- strsplit(dwn_cds_junction$names, '_')
@@ -216,14 +236,14 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     # Save the features and coverage of features retained by first filter
     saveRDS(passed_filter1_introns, paste0(retention.files.dir, "/IR_filter1_", sample_nam, "_", chr, ".RDS"))
 
-    ####################### Filter 2: Check at least 50% of the intron length should be covered by more than 1TPM unique reads ################
+    ####################### Filter 2: Check at least 85% of the intron length should be covered by more than 1RPKM unique reads ################
     print("filter2")
 
-    # Select for the regions in cov bp which are not upstream or downstream. These are the intron regions for which we calculate TPMs
+    # Select for the regions in cov bp which are not upstream or downstream. These are the intron regions for which we calculate RPKMs
     passed_filter1_introns2 <- passed_filter1_introns[(!grepl("down", passed_filter1_introns$names) & !grepl("up", passed_filter1_introns$names)), ]
 
     # Calculate the total number of reads, number of reads more than 1, and number of reads more than 0
-    unique_reads <- passed_filter1_introns2 %>% group_by(names) %>% summarise(total_count = n(), read_count = sum(tpm > 1), read_count_0 = sum(tpm > 0))
+    unique_reads <- passed_filter1_introns2 %>% group_by(names) %>% summarise(total_count = n(), read_count = sum(rpkm > 0.5), read_count_0 = sum(rpkm > 0))
     # Calculate the percentage of reads in each group which are more than zero or more than 1.
     unique_reads <- unique_reads %>% group_by(names) %>% mutate(read_percentage = (read_count / total_count) * 100, read_percentage_0 = (read_count_0 / total_count) * 100)
     # For features which are more than 85 percent we say that the intron is retained else not.
@@ -232,6 +252,7 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     } else {
       "no retention"
     })
+
 
     # Subset for the introns whose names match the intron names from filter 2
     filter2_introns <- filter2[grepl("intron", filter2$retention), ]
@@ -245,11 +266,11 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     filter2_introns_names <- filter2_introns$group
     # Select for the group names. Which are in filter 2 introns.
     passed_filter2_introns <- covbp_dt[covbp_dt$group %in% filter2_introns_names, ]
-
+ 
     # Save the retained intron files.
     saveRDS(passed_filter2_introns, paste0(retention.files.dir, "/IR_filter2_", sample_nam, "_", chr, ".RDS"))
-
-    ################################ Filter 3:Check if median coverage over the flanking exons is more than 1TPM  #######################
+    
+    ################################ Filter 3:Check if median coverage over the flanking exons is more than 1RPKM  #######################
     print("filter3")
 
     # The following two extracts the regions in bp cov which up or downstream are present and puts them into their respective tables.
@@ -259,16 +280,17 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     # Rbind the up and downstream data
     flanking_exons <- rbind(flanking_exons_up, flanking_exons_dwn)
 
-    # Convert the table to data frame summarize it to get the median coverage, TPM, mean coverage and mean TPM for each bp in CDS
-    cov_flanking_exons <- as.data.frame(flanking_exons) %>% group_by(names) %>% summarise(medCVG = median(coverage), medTPM = median(tpm), meanCVG = mean(coverage), meanTPM = mean(tpm))
+    # Convert the table to data frame summarize it to get the median coverage, RPKM, mean coverage and mean RPKM for each bp in CDS
+    cov_flanking_exons <- as.data.frame(flanking_exons) %>% group_by(names) %>% summarise(medCVG = median(coverage), medRPKM = median(rpkm), meanCVG = mean(coverage), meanRPKM = mean(rpkm))
 
     # Create a grouping column again based on the name
     sp_nam <- strsplit(cov_flanking_exons$names, '_')
     grp <- sapply(sp_nam, function(x) x[1])
     cov_flanking_exons$group <- grp
 
-    # Calculate using any if medTPM is less than zero otherwise the intron is retained
-    covbp_flanking_exons <- cov_flanking_exons %>% group_by(group) %>% summarise(retention = if (any(medTPM <= 1)) {
+    # Calculate using any if medRPKM is less than zero otherwise the intron is retained
+
+    covbp_flanking_exons <- cov_flanking_exons %>% group_by(group) %>% summarise(retention = if (any(medRPKM < 0.5)) {
       "no retention"
     } else {
       "intron retention"
@@ -279,9 +301,11 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     # Select for the group for which intron names are what was extracted in above line.
     passed_filter3_introns <- covbp_dt[covbp_dt$group %in% filter3_introns_names, ]
 
-    # Save all the files which pass this TPM calculation
+    # Save all the files which pass this RPKM calculation
     saveRDS(passed_filter3_introns, paste0(retention.files.dir, "/IR_filter3_", sample_nam, "_", chr, ".RDS"))
-
+    
+    passed_filter3_introns <- readRDS(paste0(retention.files.dir, "/IR_filter3_", sample_nam, "_", chr, ".RDS"))
+    
     ####### Filter 4:Check if the ratio of median coverage over the intron to median coverage of the upstream exon was at least 10%  #######
     print("filter4")
 
@@ -294,7 +318,7 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     medcvg$group <- grp
 
     # Get the retention ratios
-    medcvg2 <- medcvg %>% group_by(group) %>% mutate(ratio = abs(first(medCVG) / medCVG))
+    medcvg2 <- medcvg %>% group_by(group) %>% mutate(ratio = abs(first(medCVG) /(first(medCVG)+ medCVG)))
     # This selects the CDS regions only to find median
     medcvg3 <- medcvg2[grepl("cds", medcvg2$names), ]
 
@@ -302,7 +326,15 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     medcvg3$ratio[which(!is.finite(medcvg3$ratio))] <- 0
 
     # Retain the regions for which any is more than equal to 10 or more is retained other wise not retained.
-    filter4 <- medcvg3 %>% group_by(group) %>% summarise(retention = if (any(ratio <= 0.10)) {
+    # filter4 <- medcvg3 %>% group_by(group) %>% summarise(retention = if (any(ratio < 0.01)) {
+    # # filter4 <- medcvg3 %>% group_by(group) %>% summarise(retention = if (any(ratio < 0.03)) {
+    #   "no retention"
+    # } else {
+    #   "intron retention"
+    # })
+    
+    # filter4 <- medcvg3 %>% group_by(group) %>% summarise(retention = if (any(ratio <= 0.10)) {
+    filter4 <- medcvg3 %>% group_by(group) %>% summarise(retention = if (any(ratio <= 0.2)) {
       "no retention"
     } else {
       "intron retention"
@@ -318,8 +350,8 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     ids_retintron <- filter4_introns$group
 
     # Get the retained introns based on filrered genes and group ids
-    retained_introns <- filt_genes[which(names(filt_genes) %in% ids_retintron)]
-
+    retained_introns <- filt_genes[(names(filt_genes) %in% ids_retintron),]
+ 
     # From median table get those whihc were passed or in those ids.
     retained_introns_ratios <- medcvg2[medcvg2$group %in% ids_retintron, ]
     # assign the values in data frame
@@ -328,6 +360,7 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     medcvg_intron <- retained_introns_ratios[!grepl("cds", retained_introns_ratios$names), ]
     colnames(medcvg_intron) <- paste(colnames(medcvg_intron), "intron", sep = "_")
     medcvg_intron <- as.data.frame(medcvg_intron)
+    medcvg_intron$ratio_intron <- 1
     # Get the downstream values of this as well and relabel it
     medcvg_down <- retained_introns_ratios[grepl("down", retained_introns_ratios$names), ]
     colnames(medcvg_down) <- paste(colnames(medcvg_down), "down", sep = "_")
@@ -338,13 +371,16 @@ findIntronRetention <- function(covbp_dt, sample_nam, retention.files.dir, chr, 
     medcvg_up <- as.data.frame(medcvg_up)
     # Now cbind to form everything in a single matrix
     retained_introns_data <- cbind(retained_intron, medcvg_intron, medcvg_up, medcvg_down)
-    retained_introns_data <- as.data.frame(retained_introns_data)
-    retained_introns$medCVG_intron <- retained_introns_data$medCVG_intron
-    retained_introns$medCVG_up <- retained_introns_data$medCVG_up
-    retained_introns$ratio_up <- retained_introns_data$ratio_up
-    retained_introns$medCVG_down <- retained_introns_data$medCVG_down
-    retained_introns$ratio_down <- retained_introns_data$ratio_down
-    retained_introns <- as.data.frame(retained_introns)
+    # retained_introns_data <- as.data.frame(retained_introns_data)
+    # retained_introns$medCVG_intron <- retained_introns_data$medCVG_intron
+    # retained_introns$medCVG_up <- retained_introns_data$medCVG_up
+    # retained_introns$ratio_up <- retained_introns_data$ratio_up
+    # retained_introns$medCVG_down <- retained_introns_data$medCVG_down
+    # retained_introns$ratio_down <- retained_introns_data$ratio_down
+    # retained_introns <- as.data.frame(retained_introns)
+    
+    retained_introns <- merge(retained_intron, retained_introns_data[c("medCVG_intron", "medCVG_up", "ratio_up","medCVG_down", "ratio_down")], by = "row.names", all = TRUE)
+    
     print("saving")
 
     # Save the retained reads here

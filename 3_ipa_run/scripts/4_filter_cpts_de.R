@@ -1,6 +1,5 @@
 
 
-
 library(GenomicAlignments)
 library(GenomicFeatures)
 library(dplyr)
@@ -19,9 +18,9 @@ library(DESeq2)
 
 filter_changepoints <- function(input.data.path, wd, atlas_name) {
 
-  # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_test2.txt"
+  # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_GSE184264_uniq.txt"
   # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
-  # atlas_name <- "test2"
+  # atlas_name <- "GSE184264"
   
   # Set up output, slurm, and log directories
   results.files.dir <- file.path(wd, "pelt", "results", atlas_name)
@@ -39,15 +38,18 @@ filter_changepoints <- function(input.data.path, wd, atlas_name) {
   }, error = function(e) {
     stop(paste("Failed to read input data table:", e$message))
   })
-
+  
+  # data.input <- data.input[1:18,]
   # Get all sample names
   sampleNames <- as.character(data.input$NAME)
 
+  # sampleNames <- c("CD5B3", "NB3", "NB4")
+  
   # Process each sample individually
   sapply(sampleNames, function(sample_nam) {
 
-    # sample_nam <- "NM33"
-
+    # sample_nam <- "Monocyte_REP5"
+    print(sample_nam)
     tryCatch({
         # Get path for unique reads file
         reads_path <- as.character(subset(data.input, NAME == sample_nam)$FILE_PATH)
@@ -120,6 +122,8 @@ filter_changepoints <- function(input.data.path, wd, atlas_name) {
       for (dir in c(file.path(slurm.files.dir, sample_nam), logs.files.dir)) {
         if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
       }
+      
+      # out.file3 = paste0(sample.results.dir, "/filter_cpts_results/filter_cpts_tpm_exprs", i, "_", sample_nam, ".csv")
 
       # Prepare GG.locs object with all relevant info
       GG.locs <- ref
@@ -156,7 +160,7 @@ filter_changepoints <- function(input.data.path, wd, atlas_name) {
       bash.file.location <- file.path(results.sample.dir, paste0(sample_nam, "submit.sh"))
       slurm.jobname <- sprintf("#SBATCH --job-name=%s_filterCpts_", sample_nam)
       slurm.time <- "#SBATCH --time=01:30:00"
-      slurm.mem <- "#SBATCH --mem=56G"
+      slurm.mem <- "#SBATCH --mem=48G"
       slurm.tasks <- "#SBATCH --ntasks=8"
       slurm.output <- paste0("#SBATCH --output=", logs.files.dir, "/", sample_nam, "_filterCpts_", sample_nam)
       sbatch.line <- sprintf("Rscript --vanilla %s", script.name)
@@ -165,7 +169,12 @@ filter_changepoints <- function(input.data.path, wd, atlas_name) {
       close(file.conn)
 
       # Submit the job
-      system(paste0("sbatch ", bash.file.location))
+      job_output <- system(paste0("sbatch ", bash.file.location))
+      
+      # Extract only the job ID(s)
+      job_id <- regmatches(job_output, regexpr("\\d+", job_output))[[1]]
+      write(job_id, "current_jobs.log", append = TRUE)
+      print(paste("SLURM submission successful for:", sample_nam))
 
       print(paste0("Running algorithm for sample ", sample_nam, "..."))
       print("Your job is submitted")
@@ -484,10 +493,81 @@ filterCpts <- function(GG.locs){
           cpt1 = cp_id[cp_id$id2 == paste0(id, "_", cp), ]
           cpt2 = cp_id[cp_id$id2 == paste0(id, "_", (cp+1)), ]
 
-          # (Classification logic for multi-cpt events continues here...)
-          # [Truncated for brevity]
+          if(cp_id$strand[1] == "+"){
+            
+            if((cpt1$medCVG_dwn_all > cpt1$medCVG_up_all)  &  (cpt2$medCVG_up_all > cpt2$medCVG_dwn_all)  & (cpt1$ratio_splice >= 0.05) & (cpt2$ratio_splice == 0) ){
+              
+              #cpt$ipa_sel[match(cpt1$id2, cpt$id2)] <- "sp_site"
+              cpt$ipa_sel[match(cpt2$id2, cpt$id2)] <- "skipped_ipa"
+              
+              cpt$exon.start[match(cpt2$id2, cpt$id2)] <-  cpt1$cpt_start
+              cpt$exon.end[match(cpt2$id2, cpt$id2)] <- cpt2$cpt_start
+              
+            } else if(cpt1$medCVG_up_all > cpt1$medCVG_dwn_all  &  cpt2$medCVG_up_all > cpt2$medCVG_dwn_all & (cpt1$ratio_splice == 0) & (cpt2$ratio_splice == 0)){
+              #as1$Values[match(as2$ID, as1$ID)] <- as2$Values
+              cpt$ipa_sel[match(cpt1$id2, cpt$id2)] <- "composite_ipa"
+              cpt$ipa_sel[match(cpt2$id2, cpt$id2)] <- "composite_ipa"
+              
+              
+              cpt$exon.start[match(cpt1$id2, cpt$id2)] <-  cpt1$intron_start
+              cpt$exon.end[match(cpt1$id2, cpt$id2)] <- cpt1$cpt_start
+              
+              cpt$exon.start[match(cpt2$id2, cpt$id2)] <-  cpt2$intron_start
+              cpt$exon.end[match(cpt2$id2, cpt$id2)] <- cpt2$cpt_start
+
+            }
+            
+          }
+          else if(cp_id$strand[1] == "-"){
+            
+            if(cpt1$medCVG_up_all > cpt1$medCVG_dwn_all  &  cpt2$medCVG_dwn_all > cpt2$medCVG_up_all & cpt1$ratio_splice >= 0.05 & cpt2$ratio_splice == 0 ){
+              
+              #cpt$ipa_sel[match(cpt1$id2, cpt$id2)] <- "sp_site"
+              cpt$ipa_sel[match(cpt2$id2, cpt$id2)] <- "skipped_ipa"
+              
+              cpt$exon.start[match(cpt2$id2, cpt$id2)] <-  cpt2$cpt_start
+              cpt$exon.end[match(cpt2$id2, cpt$id2)] <- cpt1$cpt_start
+              
+            } else if( cpt1$medCVG_dwn_all > cpt1$medCVG_up_all &  cpt2$medCVG_dwn_all > cpt2$medCVG_up_all & (cpt1$ratio_splice == 0) & (cpt2$ratio_splice == 0)){
+              #as1$Values[match(as2$ID, as1$ID)] <- as2$Values
+              cpt$ipa_sel[match(cpt1$id2, cpt$id2)] <- "composite_ipa"
+              cpt$ipa_sel[match(cpt2$id2, cpt$id2)] <- "composite_ipa"
+              
+              
+              cpt$exon.start[match(cpt1$id2, cpt$id2)] <-  cpt1$cpt_start
+              cpt$exon.end[match(cpt1$id2, cpt$id2)] <- cpt1$intron_end
+              
+              cpt$exon.start[match(cpt2$id2, cpt$id2)] <-  cpt2$cpt_start
+              cpt$exon.end[match(cpt2$id2, cpt$id2)] <- cpt2$intron_end
+   
+            }
+            
+          }
         }
       }
+      
+      cpt[cpt$ipa_sel == 0,]["ipa_sel"] <- "no_ipa"
+      
+      write.csv(cpt,out.file)
+      
+      
+      cpt_two_exon <- cpt[cpt$ipa_sel != "no_ipa",]
+      cpt_two_exon <- as.data.frame(cpt_two_exon)
+      
+      #Select only change points with TPM greater than one (only those which are not spliced)-recheck the selection
+      filt_cpt_two_exprs <- cpt_two_exon[which(cpt_two_exon$tpm >= 0.5 & cpt_two_exon$padj <=  0.2 & cpt_two_exon$pvalue <= 0.1  ),]
+
+      
+      write.csv(cpt_two_exon,out.file2)
+      
+      if (nrow(filt_cpt_two_exprs) > 1) {
+        print(filt_cpt_two_exprs)
+        print("saving >1 cpt")
+        write.csv(filt_cpt_two_exprs,out.file3)
+      }
     }
+    
   }
+  print("finished")
 }
+

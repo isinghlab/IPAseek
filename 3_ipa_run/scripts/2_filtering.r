@@ -1,10 +1,12 @@
-
-library(GenomicAlignments)
+suppressMessages(library(GenomicAlignments))
 
 # Filtering pipeline: prepares and submits per-chromosome filtering jobs for each sample
 
 filtering <- function(input.data.path, wd, atlas_name) {
 
+  # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_GSE184264_uniq.txt"
+  # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
+  # atlas_name <- "GSE184264"
 
   # Set up output, slurm, and log directories
   results.files.dir <- file.path(wd, "pelt", "results", atlas_name)
@@ -23,14 +25,18 @@ filtering <- function(input.data.path, wd, atlas_name) {
     stop(paste("Failed to read input data table:", e$message))
   })
 
-  data.input <- data.input[1:100,]
-
+  
   # Get all sample names
   sampleNames <- as.character(data.input$NAME)
-
+  
+  # sampleNames <- c("CD5B3", "NB3", "NB4")
+  
   # Process each sample individually
   sapply(sampleNames, function(sample) {
     tryCatch({
+      
+      # sample <- "NaiveB_REP1"
+      
       # Define coverage and retention file locations
       cvg.loc   <- file.path(wd, "pelt", "results", atlas_name)
       reten.loc <- file.path(wd, "pelt", "results", atlas_name, "intron_retention_se_results", paste0("retention_data_", sample, ".rds"))
@@ -45,6 +51,7 @@ filtering <- function(input.data.path, wd, atlas_name) {
       reten$id <- rownames(reten)
       nam <- paste0(sample, "_retention")
       reten_id <- reten[which(reten[[nam]] %in% c("no retention")), "id"]
+
 
       # Load intron annotation for this sample
       introns.file.dir <- file.path(wd, "pelt", "results", atlas_name, "exp_introns_results", paste0(sample, ".RDS"))
@@ -63,6 +70,8 @@ filtering <- function(input.data.path, wd, atlas_name) {
       rn_introns <- makeGRangesFromDataFrame(rn_introns_df, keep.extra.columns = TRUE)
       ref <- rn_introns
       chrs <- unique(seqnames(ref))
+      
+      # chrs <- head(chrs,3)
 
 
 
@@ -81,7 +90,11 @@ filtering <- function(input.data.path, wd, atlas_name) {
 
       # For each chromosome, prepare and submit a filtering job
       for (chr in chrs) {
+        res_file <- paste0(results.files.dir,"/" , sample, "/filtering_results/filtered_", sample,"_",chr, ".RDS")
+        
+        if(!file.exists(res_file)){
         tryCatch({
+          # chr <- "chr14"
           # Define coverage file path for this chromosome
           covPath <- file.path(cvg.loc, sample, "coverage_results", paste0("cov_", sample, "_", chr, ".RDS"))
           GG.locs <- ref[which(seqnames(ref) == chr)]
@@ -90,43 +103,49 @@ filtering <- function(input.data.path, wd, atlas_name) {
           GG.locs$covPath <- covPath
           GG.locs$wd <- wd
           GG.locs$atlas_name <- atlas_name
-
+        
           # Save GG.locs object for use in the job script
           results.sample.dir <- file.path(slurm.files.dir, sample)
           GG.locs.rdata.path <- file.path(results.sample.dir, paste0(sample, "_", chr, "GGlocs.Rdata"))
           save(GG.locs, file = GG.locs.rdata.path)
-
+        
           # Create the R script for this chromosome
           script.name <- file.path(results.sample.dir, paste0(chr, "_goFiltRun.R"))
           sink(file = script.name)
           cat("
-                library(GenomicAlignments)
-                library(GenomicFeatures)
-                library(dplyr)
-                library(data.table)
+                suppressMessages(library(GenomicAlignments))
+                suppressMessages(library(GenomicFeatures))
+                suppressMessages(library(dplyr))
+                suppressMessages(library(data.table))
                 ")
           cat(paste0("\nload('", goFilt.loc, "')"))
           cat(paste0("\nload('", GG.locs.rdata.path, "')"))
           cat("\ngoFilt(GG.locs)")
           sink()
-
+        
           # Create the SLURM bash script for this job
           bash.file.location <- file.path(results.sample.dir, paste0(chr, "submit.sh"))
           slurm.jobname <- sprintf("#SBATCH --job-name=%s_IPA_Filtering", sample)
           slurm.time <- "#SBATCH --time=00:30:00"
-          slurm.mem <- "#SBATCH --mem=32G"
-          slurm.tasks <- "#SBATCH --ntasks=8"
+          slurm.mem <- "#SBATCH --mem=48G"
+          slurm.tasks <- "#SBATCH --ntasks=2"
           slurm.output <- paste0("#SBATCH --output=", logs.files.dir, "/", sample, "_IPA_Filtering_", chr)
           sbatch.line <- sprintf("Rscript --vanilla %s", script.name)
           file.conn <- file(bash.file.location)
           writeLines(c("#!/bin/bash", slurm.jobname, slurm.time, slurm.mem, slurm.tasks, slurm.output, sbatch.line), file.conn)
           close(file.conn)
-
+        
           # Submit the job
-          system(paste0("sbatch ", bash.file.location))
+          job_output <- system(paste0("sbatch ", bash.file.location))
+          print(job_output)
+          # Extract only the job ID(s)
+          job_id <- regmatches(job_output, regexpr("\\d+", job_output))[[1]]
+          write(job_id, "step4_filtering_job_ids.txt", append = TRUE)
+          print(paste("SLURM submission successful for:", chr))
+          
         }, error = function(e) {
           warning(paste("Error preparing/submitting job for sample", sample, "chromosome", chr, ":", e$message))
-        })
+        })}
       }
 
       print(paste0("Running algorithm for sample ", sample, "..."))

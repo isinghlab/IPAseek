@@ -1,4 +1,3 @@
-
 library(dplyr)            
 library(data.table)       
 library(GenomicRanges)    
@@ -18,7 +17,7 @@ calc_cds_overlap <- function(terminal_exon_gr){
     te_entrezid <- terminal_exon_gr$entrez.id[1]
 
     # Load pre-annotated CDS and exon data for hg38 genome (must be available at this path)
-    hg38 <- readRDS("/scratch/user/richa.rashmi.1202/ipa/ipa_pipeline/1_intron_preprocessing/1_flatten_genome/hg38_annotated_numbered_cds.rds")
+    hg38 <- readRDS("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/1_intron_preprocessing/1_flatten_genome/hg38/hg38_annotated_numbered_cds.rds")
     
     # Extract CDS features for this gene
     hg38_cds <- hg38[hg38$exon.anno == "cds" & hg38$entrez.id %in% te_entrezid,]
@@ -62,7 +61,7 @@ calc_confidence <- function(ipa_atlas, groups_df){
   # groups_df: data frame mapping CONDITION to comma-separated sample names
 
   # Get all unique group/condition names
-  groups <- unique(groups_df$CONDITION) 
+  groups <- unique(groups_df$CELL_TYPE) 
 
   # Split the IPA atlas into a list of GRanges (one per event)
   ipa_atlas_split <- split(ipa_atlas)
@@ -82,7 +81,7 @@ calc_confidence <- function(ipa_atlas, groups_df){
       # print(group)
 
       # Get all sample names for this group
-      group_cols <- unlist(strsplit(groups_df[groups_df$CONDITION == group, "NAME"], ","))
+      group_cols <- unlist(strsplit(groups_df[groups_df$CELL_TYPE == group, "NAME"], ","))
       # Get all sample names supporting this event
       source_cols <- unlist(strsplit(gr$source, ","))
 

@@ -1,14 +1,18 @@
-library(GenomicAlignments)
-library(GenomicFeatures)
-library(data.table)
-library(gtools)
-library(dplyr)
-library(tidyr)
+suppressMessages(library(GenomicAlignments))
+# suppressMessages(library(GenomicFeatures))
+suppressMessages(library(data.table))
+suppressMessages(library(gtools))
+suppressMessages(library(dplyr))
+suppressMessages(library(tidyr))
+suppressMessages(library(slurmR))
 
 ipa_detect <- function(input.data.path, wd, atlas_name) {
-
-
-  ## Main function for IPA detection pipeline ##
+  
+  # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_GSE114922_uniq.txt"
+  # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
+  # atlas_name <- "GSE114922"
+  
+  if(slurm_available()){
 
   # Setup & Initialization
 
@@ -43,13 +47,17 @@ ipa_detect <- function(input.data.path, wd, atlas_name) {
       stop(paste("Failed to read input data:", input.data.path, "\nError:", e$message))
     })
     
-
     sampleNames <- as.character(data.input$NAME)
     
+    #sampleNames <- c("NB3", "NB4")
 
     # Sample Processing
 
     processSample <- function(sample) {
+      
+      print(sample)
+      
+      # sample <- c("WT_REP34")
 
       tryCatch({
         # 3.1 BAM File Handling
@@ -96,7 +104,7 @@ ipa_detect <- function(input.data.path, wd, atlas_name) {
           
                     reads<-read_bam(bf)
                     saveRDS(reads, reads.dir)}else{
-                      reads <- readRDS(reads.dir)
+                      # reads <- readRDS(reads.dir)
                     }
 
           # Check if library size has already been computed. If not compute it
@@ -112,61 +120,66 @@ ipa_detect <- function(input.data.path, wd, atlas_name) {
           wd, "2_gene_preprocessing", "3_gene_expression", "results",
           atlas_name, "gene_expression_results", paste0(sample, "_rpkm_df.rds")
         )
-        
+
         exprGenes <- tryCatch({
-          readRDS(exprs.loc) %>% 
-            as.data.frame() %>% 
+          readRDS(exprs.loc) %>%
+            as.data.frame() %>%
             na.omit()
         }, error = function(e) {
           stop(paste("Failed to load expression data for:", sample, "\nError:", e$message))
         })
-        
+
 
         #Intron Data Processing
 
         introns.file.dir <- file.path(
-          wd, "1_intron_preprocessing", "3_filtering_gobj", 
+          wd, "1_intron_preprocessing", "3_filtering_gobj",
           "rnhg38_filtered_introns_cds.rds"
         )
-        
+
         rn_introns <- tryCatch({
-          readRDS(introns.file.dir) %>% 
+          readRDS(introns.file.dir) %>%
             .[names(.) %in% rownames(exprGenes)]
         }, error = function(e) {
           stop(paste("Intron data processing failed for:", sample, "\nError:", e$message))
         })
-        
+
         # Save expressed introns
         exp.files.dir <- file.path(results.files.dir, "exp_introns_results")
         safeDirCreate(exp.files.dir)
-        
+
         tryCatch({
           saveRDS(rn_introns, file.path(exp.files.dir, paste0(sample, ".RDS")))
         }, error = function(e) {
           stop(paste("Failed to save intron data for:", sample, "\nError:", e$message))
         })
-        
-      
+
+
 
         # Chromosome Processing
 
         chrs <- unique(seqnames(rn_introns))
-        # chrs <- head(chrs)
-        
+# 
+        #chrs <- c("chr8","chr13", "chr14")
+
         # Create SLURM submission files
         ipaDetect.loc <- file.path(slurm.files.dir, "ipaDetect.Rdata")
         save(ipaDetect, file = ipaDetect.loc)
-        
+
         # Create sample-specific directories
         sample.dirs <- c(
           file.path(results.files.dir, sample),
           file.path(slurm.files.dir, sample)
         )
         sapply(sample.dirs, safeDirCreate)
-        
+
         # Process each chromosome
         for (chr in chrs) {
+
           tryCatch({
+            res.file <- paste0(results.files.dir,"/",sample, "/retention_results/retained_introns_sel_",sample,"_",chr,".csv")
+            if(!file.exists(res.file)){
+            # chr = "chr1"
             # 6.1 Create Genomic Ranges
             GG.locs <- rn_introns[seqnames(rn_introns) == chr]
             GG.locs$output <- file.path(results.files.dir, sample)
@@ -174,14 +187,14 @@ ipa_detect <- function(input.data.path, wd, atlas_name) {
             GG.locs$sample <- sample
             GG.locs$wd <- wd
             GG.locs$atlas_name <- atlas_name
-            
+
             # 6.2 Save chromosome data
             chr.data.file <- file.path(
               slurm.files.dir, sample,
               paste0(sample, "_", chr, "GGlocs.Rdata")
             )
             save(GG.locs, file = chr.data.file)
-            
+
             # 6.3 Generate SLURM script
             script.name <- file.path(
               slurm.files.dir, sample,
@@ -193,74 +206,74 @@ ipa_detect <- function(input.data.path, wd, atlas_name) {
             generateScript <- function() {
               sink(script.name)
               cat(paste0("
-                  \nlibrary(GenomicAlignments)
-                  \nlibrary(GenomicFeatures)
-                  \nlibrary(tidyverse)
-                  \nlibrary(dplyr)
-                  \nlibrary(data.table)
+                  \nsuppressMessages(library(GenomicAlignments))
+                  \nsuppressMessages(library(tidyverse))
+                  \nsuppressMessages(library(dplyr))
+                  \nsuppressMessages(library(data.table))
                   \nload(\'",ipaDetect.loc,"\')
                   \nload(\'",chr.data.file,"\')
                   \nipaDetect(GG.locs)
                   "), fill = TRUE)
               sink()
             }
-            
+
             tryCatch({generateScript()}, error = function(e) {
               stop(paste("Script generation failed for:", chr, "\nError:", e$message))
             })
-            
+
             # 6.4 Submit SLURM job
             bash.file <- file.path(
               slurm.files.dir, sample,
               paste0(chr, 'submit.sh')
             )
-            
+
             slurm.params <- c(
               "#!/bin/bash",
               paste("#SBATCH --job-name=", sample, "_IPA_Detect", sep = ""),
-              "#SBATCH --time=01:00:00",
+              "#SBATCH --time=00:30:00",
               "#SBATCH --mem=64G",
-              "#SBATCH --ntasks=128",
+              "#SBATCH --ntasks=16",
               # "#SBATCH --gres=gpu:a100:1",
               paste("#SBATCH --output=", logs.files.dir, "/", sample, "_IPA_Detect_", chr, sep = ""),
               paste("Rscript --vanilla", script.name)
             )
-            
+
             tryCatch({
               writeLines(slurm.params, bash.file)
               job_output <- system(paste("sbatch", bash.file),  intern = TRUE)
 
               # Extract only the job ID(s)
               job_id <- regmatches(job_output, regexpr("\\d+", job_output))[[1]]
-              write(job_id, "current_jobs.log", append = TRUE)
+              write(job_id, "step1_ipa_detect_job_ids.txt", append = TRUE)
+              print(paste("SLURM submission successful for:", chr))
 
             }, error = function(e) {
               stop(paste("SLURM submission failed for:", chr, "\nError:", e$message))
-            })
-            
+            })}
+
           }, error = function(e) {
             message(paste("Chromosome processing failed for:", chr, "\nError:", e$message))
-          })
-        }
-        
+          })}
+
+
         message(paste0("Successfully submitted jobs for sample: ", sample))
-        
+
       }, error = function(e) {
         message(paste("Sample processing failed for:", sample, "\nError:", e$message))
         return(NULL)
       })
     }
-    
+
     # Process all samples
     sapply(sampleNames, processSample)
-    
+
   }, error = function(e) {
     message(paste("Critical pipeline error:", e$message))
     return(NULL)
   })
   
   message("Pipeline execution completed")
-  invisible(TRUE)
+  invisible(TRUE)} else{ "Slurm not available"}
 }
 
 
@@ -349,8 +362,6 @@ ipaDetect <- function(GG.locs) {
 }
 
 
-
-
 # #################################################################################################################################  
 # ###############################  Retreivng intronretention data, Creating sumarized experiment       ############################
 # #################################################################################################################################  
@@ -358,6 +369,10 @@ ipaDetect <- function(GG.locs) {
 # Function to create a table summarizing intron retention information for each sample,
 # with robust error handling.
 retrieve_intronreten_data <- function(input.data.path, wd, atlas_name) {
+  
+  # input.data.path=datainfo.location
+  # wd=project.dir
+  # atlas_name=atlas_name
 
   # Define the output directory for intron retention summary results
   intron_retention_data.dir <- file.path(wd, "pelt", "results", atlas_name, "intron_retention_se_results")

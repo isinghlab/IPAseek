@@ -9,7 +9,7 @@ library(splicejam)
 #################################################################################################################################  
 
 calc_atlas <- function(data.input){
-
+  # data.input_name <- data.input.split
    # Extract key parameters from the input data frame
    data.input_name <- data.input$atlas[1]         # Atlas batch name
    wd <- data.input$wd[1]                         # Working directory
@@ -30,14 +30,36 @@ calc_atlas <- function(data.input){
    cpt_all <- do.call(
      rbind,
      lapply(
+       # List all te_expression*.csv files
        list.files(
-         path = paste0(wd,"/pelt/results/",atlas_name,"/",sampleNames,"/exon_exprs_results/"),
+         path = paste0(wd, "/pelt/results/", atlas_name, "/", sampleNames, "/exon_exprs_results/"),
          full.names = TRUE,
-         pattern = "*.csv"
-       ),
+         pattern = "^te_expression.*\\.csv$"
+       ) |> 
+         # Exclude files ending with _unfiltered.csv
+         (\(x) x[!grepl("_unfiltered\\.csv$", x)] )(),
        read.csv
      )
    )
+   
+   
+  #  files =        list.files(
+  #  path = paste0(wd, "/pelt/results/", atlas_name, "/", sampleNames, "/exon_exprs_results/"),
+  #  full.names = TRUE,
+  #  pattern = "^te_expression.*\\.csv$"
+  #  ) |>
+  # # Exclude files ending with _unfiltered.csv
+  # (\(x) x[!grepl("_unfiltered\\.csv$", x)] )()
+  # #
+  # #
+  #  for(sample in files){
+  #    x <- read.csv(sample)
+  #    # x <- x[-1]
+  #    # write.csv(x,"/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline//pelt/results/phs001027/SRR15674459/exon_exprs_results//te_expressionSRR15674459.csv")
+  #    print(sample)
+  #    print(dim(x))
+  #  }
+
    cpt_all <- unique(cpt_all) # Remove duplicate rows
    # cpt_all <- cpt_all[-1]   # (Optionally remove first row if needed)
    # Select relevant columns for downstream analysis
@@ -87,13 +109,17 @@ calc_atlas <- function(data.input){
           ends_median <- median(ends)
           start(gr_splitted) <- ends_median
         }
+        return(gr_splitted)
       })
-      print(gr) # Print progress for each group
+      gr_median <- unlist(gr_median)
+      gr_median <- GRangesList(gr_median)
+      gr_median <- unlist(gr_median)
+      print(gr_median) # Print progress for each group
    })
 
    # Calculate retained CDS for each merged region using a custom function
    print("calculating retained cds")
-   te_median <- mclapply(te_median, calc_cds_overlap)
+   te_median <- lapply(te_median, calc_cds_overlap)
 
    # Convert the list of GRanges to a single GRanges object
    te_median <- GRangesList(te_median)

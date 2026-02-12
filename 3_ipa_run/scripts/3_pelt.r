@@ -1,16 +1,19 @@
-
-library(GenomicAlignments)
-library(GenomicFeatures)
-library(dplyr)
-library(tidyr)
-library(data.table)
-library(gtools)
-library(changepoint)
-
+suppressMessages(library(GenomicAlignments))
+suppressMessages(library(GenomicFeatures))
+suppressMessages(library(dplyr))
+suppressMessages(library(tidyr))
+suppressMessages(library(data.table))
+suppressMessages(library(gtools))
+suppressMessages(library(changepoint))
 
 # Prepare and submit per-chromosome PELT changepoint jobs for each sample
 
 pelt <- function(input.data.path, wd, atlas_name) {
+  
+  # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_test_uniq.txt"
+  # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
+  # atlas_name <- "test"
+
   # Set up output, slurm, and log directories
   results.files.dir <- file.path(wd, "pelt", "results", atlas_name)
   slurm.files.dir   <- file.path(wd, "pelt", "slurm_submission_pelt", atlas_name)
@@ -27,13 +30,19 @@ pelt <- function(input.data.path, wd, atlas_name) {
   }, error = function(e) {
     stop(paste("Failed to read input data table:", e$message))
   })
-
-
+  # 
+#   data.input <- data.input[1:5,]
+  
   # Get all sample names
   sampleNames <- as.character(data.input$NAME)
 
+  # sampleNames <- c("CD5B3", "NB3", "NB4")
+  
   # Process each sample individually
   sapply(sampleNames, function(sample) {
+    
+    # sample <- "NB3"
+
     tryCatch({
       # Define coverage, filtering, and retention file locations
       cvg.loc      <- file.path(wd, "pelt", "results", atlas_name)
@@ -68,6 +77,8 @@ pelt <- function(input.data.path, wd, atlas_name) {
       rn_introns <- makeGRangesFromDataFrame(rn_introns_df, keep.extra.columns = TRUE)
       ref <- rn_introns
       chrs <- unique(seqnames(ref))
+      
+      # chrs <- head(chrs,3)
 
 
       # Save the runPelt function for use in the job scripts
@@ -85,6 +96,13 @@ pelt <- function(input.data.path, wd, atlas_name) {
 
       # For each chromosome, prepare and submit a PELT job
       for (chr in chrs) {
+        
+        # chr = "chr20"
+        res <- paste0(file.path(results.files.dir, sample), "/pelt_results/ipa_final_",sample,"_","filtered_",chr, ".RDS")
+  
+        
+        if(!file.exists(res)){
+          
         tryCatch({
           # Define coverage file path for this chromosome
           covPath <- file.path(cvg.loc, sample, "coverage_results", paste0("cov_", sample, "_", chr, ".RDS"))
@@ -105,12 +123,12 @@ pelt <- function(input.data.path, wd, atlas_name) {
           script.name <- file.path(results.sample.dir, paste0(chr, "_runPeltRun.R"))
           sink(file = script.name)
           cat("
-                library(GenomicAlignments)
-                library(GenomicFeatures)
-                library(tidyverse)
-                library(dplyr)
-                library(data.table)
-                library(changepoint)
+                suppressMessages(library(GenomicAlignments))
+                suppressMessages(library(GenomicFeatures))
+                suppressMessages(library(dplyr))
+                suppressMessages(library(data.table))
+                suppressMessages(library(tidyverse))
+                suppressMessages(library(changepoint))
                 ")
           cat(paste0("\nload('", runPelt.loc, "')"))
           cat(paste0("\nload('", GG.locs.rdata.path, "')"))
@@ -120,9 +138,9 @@ pelt <- function(input.data.path, wd, atlas_name) {
           # Create the SLURM bash script for this job
           bash.file.location <- file.path(results.sample.dir, paste0(chr, "submit.sh"))
           slurm.jobname <- sprintf("#SBATCH --job-name=%s_runPelt", sample)
-          slurm.time <- "#SBATCH --time=9:00:00"
-          slurm.mem <- "#SBATCH --mem=8G"
-          slurm.tasks <- "#SBATCH --ntasks=8"
+          slurm.time <- "#SBATCH --time=5:00:00"
+          slurm.mem <- "#SBATCH --mem=16G"
+          slurm.tasks <- "#SBATCH --ntasks=1"
           slurm.output <- paste0("#SBATCH --output=", logs.files.dir, "/", sample, "_runPelt_", chr)
           sbatch.line <- sprintf("Rscript --vanilla %s", script.name)
           file.conn <- file(bash.file.location)
@@ -130,10 +148,16 @@ pelt <- function(input.data.path, wd, atlas_name) {
           close(file.conn)
 
           # Submit the job
-          system(paste0("sbatch ", bash.file.location))
+          job_output <- system(paste0("sbatch ", bash.file.location))
+          
+          # Extract only the job ID(s)
+          job_id <- regmatches(job_output, regexpr("\\d+", job_output))[[1]]
+          write(job_id, "step5_pelt_job_ids.txt", append = TRUE)
+          print(paste("SLURM submission successful for:", chr))
+          
         }, error = function(e) {
           warning(paste("Error preparing/submitting job for sample", sample, "chromosome", chr, ":", e$message))
-        })
+        })}else{ print(paste("file already present for ", sample, chr))}
       }
 
       print(paste0("Running algorithm for sample ", sample, "..."))

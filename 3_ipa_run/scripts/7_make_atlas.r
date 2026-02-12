@@ -6,6 +6,10 @@ library(splicejam)
 
 # Function to set up and submit a SLURM job for running the make_atlas function
 make_atlas_run <- function(input.data.path, wd, atlas_name){
+  
+  # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_combined_uniq.txt"
+  # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
+  # atlas_name <- "combined"
 
   # Define paths for SLURM submission scripts and log files
   slurm.files.dir <- file.path(wd, "pelt", "slurm_submission_make_atlas", atlas_name)
@@ -62,9 +66,9 @@ make_atlas_run <- function(input.data.path, wd, atlas_name){
   # Create the SLURM submission bash script
   bash.file.location <- file.path(paste0(sample.dir, 'submit.sh'))
   slurm.jobname <- sprintf("#SBATCH --job-name=%s_make_atlas", atlas_name)      
-  slurm.time    <- sprintf("#SBATCH --time=36:00:00")                           
-  slurm.mem     <- sprintf("#SBATCH --mem=48G")                                  
-  slurm.tasks   <- sprintf("#SBATCH --ntasks=8")                                
+  slurm.time    <- sprintf("#SBATCH --time=18:00:00")                           
+  slurm.mem     <- sprintf("#SBATCH --mem=28G")                                  
+  slurm.tasks   <- sprintf("#SBATCH --ntasks=4")                                
   slurm.output  <- paste0("#SBATCH --output=", logs.files.dir, "/", atlas_name, "_make_atlas") 
   sbatch.line   <- sprintf("Rscript --vanilla %s", script.name)              
 
@@ -84,8 +88,13 @@ make_atlas_run <- function(input.data.path, wd, atlas_name){
   )
   close(file.conn)
 
-  # Submit the SLURM job using the sbatch command
-  system(paste0("sbatch ", bash.file.location))
+  # Submit the job
+  job_output <- system(paste0("sbatch ", bash.file.location))
+  
+  # Extract only the job ID(s)
+  job_id <- regmatches(job_output, regexpr("\\d+", job_output))[[1]]
+  write(job_id, "current_jobs.log", append = TRUE)
+  print(paste("SLURM submission successful for:", atlas_name))
 
   # Print a message indicating that the job was submitted
   print(paste0("Running ... ", "job for ", atlas_name, " submitted."))
@@ -110,7 +119,8 @@ make_atlas <- function(paths) {
 
     # Source external script containing the core atlas calculation logic
     # Note: This script must define the calc_atlas() function
-    source(paste0(wd, "/3_ipa_run/scripts/7_calc_atlas.R"))
+    # source(paste0(wd, "/3_ipa_run/scripts/7_calc_atlas.R"))
+    source(paste0(wd, "/3_ipa_run/scripts/7_calc_atlas_combined.R"))
 
     # Assign atlas batch names to each split group
     for (i in 1:length(data.input.split)) {

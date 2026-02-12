@@ -1,4 +1,3 @@
-
 library(GenomicAlignments)   
 library(GenomicFeatures)     
 library(dplyr)               
@@ -24,7 +23,7 @@ calc_cds <- function(ipa, wd){
    print(ipa_entrezid)          # Print the gene ID for tracking
 
    # Load the reference annotation for the genome (must contain CDS/exon info)
-   hg38 <- readRDS(paste0(wd, "/1_intron_preprocessing/1_flatten_genome/hg38_annotated_numbered_cds.rds"))
+   hg38 <- readRDS(paste0(wd, "/1_intron_preprocessing/1_flatten_genome/hg38/hg38_annotated_numbered_cds.rds"))
 
    # Subset the annotation to only this gene
    hg38_ipa <- hg38[hg38$entrez.id %in% ipa_entrezid,]

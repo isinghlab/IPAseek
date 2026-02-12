@@ -11,6 +11,10 @@ library(scales)
 
 # Main processing function 
 filter_te_run <- function(input.data.path, wd, atlas_name) {
+  
+  # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_test2.txt"
+  # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
+  # atlas_name <- "test2"
 
 
   # Set up output, slurm, and log directories
@@ -32,9 +36,13 @@ filter_te_run <- function(input.data.path, wd, atlas_name) {
 
   # Get all sample names
   sampleNames <- as.character(data.input$NAME)
-
+# 
+#   sampleNames <- c("CD5B3", "NB3", "NB4")
+  
   # Process each sample individually
   sapply(sampleNames, function(sample_nam) {
+    
+    # sample_nam <- "NM112" 
 
     tryCatch({
         # Get path for unique reads file
@@ -108,7 +116,10 @@ filter_te_run <- function(input.data.path, wd, atlas_name) {
       for (dir in c(file.path(slurm.files.dir, sample_nam), logs.files.dir)) {
         if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
       }
-
+      res_file <- paste0(sample.results.dir, "/exon_exprs_results/te_expression", sample_nam, ".csv")
+      
+      if(!file.exists(res_file)){
+      
       # Prepare GG.locs object with all relevant info
       GG.locs <- ref
       GG.locs$output <- sample.results.dir
@@ -143,9 +154,9 @@ filter_te_run <- function(input.data.path, wd, atlas_name) {
       # Create the SLURM bash script for this job
       bash.file.location <- file.path(results.sample.dir, paste0(sample_nam, "submit.sh"))
       slurm.jobname <- sprintf("#SBATCH --job-name=%s_filter_te_", sample_nam)
-      slurm.time <- "#SBATCH --time=01:30:00"
-      slurm.mem <- "#SBATCH --mem=56G"
-      slurm.tasks <- "#SBATCH --ntasks=8"
+      slurm.time <- "#SBATCH --time=00:30:00"
+      slurm.mem <- "#SBATCH --mem=32G"
+      slurm.tasks <- "#SBATCH --ntasks=2"
       slurm.output <- paste0("#SBATCH --output=", logs.files.dir, "/", sample_nam, "_filter_te_", sample_nam)
       sbatch.line <- sprintf("Rscript --vanilla %s", script.name)
       file.conn <- file(bash.file.location)
@@ -153,10 +164,15 @@ filter_te_run <- function(input.data.path, wd, atlas_name) {
       close(file.conn)
 
       # Submit the job
-      system(paste0("sbatch ", bash.file.location))
+      job_output <- system(paste0("sbatch ", bash.file.location))
+      
+      # Extract only the job ID(s)
+      job_id <- regmatches(job_output, regexpr("\\d+", job_output))[[1]]
+      write(job_id, "current_jobs.log", append = TRUE)
+      print(paste("SLURM submission successful for:", sample_nam))
 
       print(paste0("Running algorithm for sample ", sample_nam, "..."))
-      print("Your job is submitted")
+      print("Your job is submitted")}
     }, error = function(e) {
       warning(paste("Error processing sample", sample_nam, ":", e$message))
     })
@@ -227,19 +243,28 @@ filter_te <- function(GG.locs) {
 
   #  Convert GRanges to data.table for further manipulation 
   exon.obj.df <- as.data.table(exon.obj)
+  
 
-  #  Calculate TPM (Transcripts Per Million) for each region 
-  # TPM = (read count / region width) * (library size / 1,000,000)
-  exon.obj.df <- as.data.frame(exon.obj.df) %>%
-    mutate(te_tpm = ((te_coverage / abs(end - start)) * library_size) / 1e6)
-
+  #  Calculate RPKM (Transcripts Per Million) for each region 
+  exon.obj.df <- exon.obj.df %>%
+    mutate(
+      te_rpkm = (te_coverage * 1e9) / (as.numeric(abs(start - end)) * library_size)
+    )
+  # 
   # Add sample name as a source column
   exon.obj.df$source <- sample
+  
+  write.csv(
+    exon.obj.df,
+    file = file.path(path, paste0("te_expression", sample, "_unfiltered.csv")),
+    row.names = FALSE
+  )
 
-  #  Filter out low-expression regions (TPM < 1) 
-  exon.obj.df <- exon.obj.df[exon.obj.df$te_tpm >= 1, ]
+  #  Filter out low-expression regions (RPKM < 0.5) 
+  exon.obj.df <- exon.obj.df[exon.obj.df$te_rpkm >=  0.3 , ]
 
-  #  Save results as CSV for downstream analysis 
+
+   #  Save results as CSV for downstream analysis 
   write.csv(
     exon.obj.df,
     file = file.path(path, paste0("te_expression", sample, ".csv")),

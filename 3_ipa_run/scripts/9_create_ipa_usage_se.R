@@ -8,6 +8,10 @@ library(gtools)
 
 ipa_usage_se <- function(input.data.path, wd, atlas_name) {
 
+  # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_test2.txt"
+  # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
+  # atlas_name <- "test2"
+  # 
   ## Read the input sample metadata table (tab-delimited)
   data.input <- read.delim(input.data.path, sep="\t", header=TRUE)
 
@@ -26,8 +30,8 @@ ipa_usage_se <- function(input.data.path, wd, atlas_name) {
   cds_ipa_usage <- data.frame()  # IPA usage values
   ipa_reads <- data.frame()      # Raw IPA region read counts
   cds_reads <- data.frame()      # Raw CDS region read counts
-  ipa_tpm <- data.frame()        # IPA region TPM
-  cds_tpm <- data.frame()        # CDS region TPM
+  ipa_rpkm <- data.frame()        # IPA region RPKM
+  cds_rpkm <- data.frame()        # CDS region RPKM
 
   ## Loop through each sample and merge their values into the assay matrices
   for (sample in sampleNames) {
@@ -47,26 +51,26 @@ ipa_usage_se <- function(input.data.path, wd, atlas_name) {
     x_cds_reads <- x[c("X", "cds_reads")]
     setnames(x_cds_reads, old = c("cds_reads"), new = sample)
 
-    x_ipa_tpm <- x[c("X", "ipa_tpm")]
-    setnames(x_ipa_tpm, old = c("ipa_tpm"), new = sample)
+    x_ipa_rpkm <- x[c("X", "ipa_rpkm")]
+    setnames(x_ipa_rpkm, old = c("ipa_rpkm"), new = sample)
 
-    x_cds_tpm <- x[c("X", "cds_tpm")]
-    setnames(x_cds_tpm, old = c("cds_tpm"), new = sample)
+    x_cds_rpkm <- x[c("X", "cds_rpkm")]
+    setnames(x_cds_rpkm, old = c("cds_rpkm"), new = sample)
 
     # For the first sample, initialize the assay data frames
     if (nrow(cds_ipa_usage) == 0) {
       cds_ipa_usage <- x_cds_ipa_usage
       ipa_reads     <- x_ipa_reads
       cds_reads     <- x_cds_reads
-      ipa_tpm       <- x_ipa_tpm
-      cds_tpm       <- x_cds_tpm
+      ipa_rpkm       <- x_ipa_rpkm
+      cds_rpkm       <- x_cds_rpkm
     } else {
       # For subsequent samples, merge by row (IPA event)
       cds_ipa_usage <- merge(cds_ipa_usage, x_cds_ipa_usage)
       ipa_reads     <- merge(ipa_reads, x_ipa_reads)
       cds_reads     <- merge(cds_reads, x_cds_reads)
-      ipa_tpm       <- merge(ipa_tpm, x_ipa_tpm)
-      cds_tpm       <- merge(cds_tpm, x_cds_tpm)
+      ipa_rpkm       <- merge(ipa_rpkm, x_ipa_rpkm)
+      cds_rpkm       <- merge(cds_rpkm, x_cds_rpkm)
     }
   }
 
@@ -83,13 +87,13 @@ ipa_usage_se <- function(input.data.path, wd, atlas_name) {
   cds_reads <- cds_reads[order(row.names(cds_reads)), ]
   cds_reads <- cds_reads[-1]
 
-  rownames(ipa_tpm) <- ipa_tpm$X
-  ipa_tpm <- ipa_tpm[order(row.names(ipa_tpm)), ]
-  ipa_tpm <- ipa_tpm[-1]
+  rownames(ipa_rpkm) <- ipa_rpkm$X
+  ipa_rpkm <- ipa_rpkm[order(row.names(ipa_rpkm)), ]
+  ipa_rpkm <- ipa_rpkm[-1]
 
-  rownames(cds_tpm) <- cds_tpm$X
-  cds_tpm <- cds_tpm[order(row.names(cds_tpm)), ]
-  cds_tpm <- cds_tpm[-1]
+  rownames(cds_rpkm) <- cds_rpkm$X
+  cds_rpkm <- cds_rpkm[order(row.names(cds_rpkm)), ]
+  cds_rpkm <- cds_rpkm[-1]
 
   ## Create the rowRanges object for the SummarizedExperiment
   ipa_atlas <- ipa_atlas[order(names(ipa_atlas)), ]
@@ -105,8 +109,8 @@ ipa_usage_se <- function(input.data.path, wd, atlas_name) {
       cds_ipa_usage = cds_ipa_usage,
       ipa_reads = ipa_reads,
       cds_reads = cds_reads,
-      ipa_tpm = ipa_tpm,
-      cds_tpm = cds_tpm
+      ipa_rpkm = ipa_rpkm,
+      cds_rpkm = cds_rpkm
     ),
     colData = colData_ipa,
     rowRanges = rowRanges_ipa
@@ -114,7 +118,7 @@ ipa_usage_se <- function(input.data.path, wd, atlas_name) {
 
   ## Save the SummarizedExperiment object to disk for downstream analysis
   print(paste("Saving SE for : ", sample))
-  saveRDS(ipa.se, paste0("/scratch/user/richa.rashmi.1202/ipa/ipa_pipeline/pelt/results/", atlas_name, "/", atlas_name, "_ipa_usage_se.rds"))
+  saveRDS(ipa.se, paste0(wd, "/pelt/results/", atlas_name, "/", atlas_name, "_ipa_usage_se.rds"))
 
   print("finished")
 }
