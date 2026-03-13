@@ -1,10 +1,8 @@
-
 #########################################################
 ## Define project directory
 #########################################################
 
-# project.dir <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
-project.dir <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
+project.dir <- "/IPAseek_pipeline"
 
 #########################################################
 ## Get data_tables
@@ -13,13 +11,15 @@ project.dir <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
 dt.name <- "data_table_test.txt"
 sample.name <- "test"
 
-datainfo.location <- file.path(project.dir, "data_tables", dt.name)
+
+
+datainfo.location <- file.path(project.dir, "input_data_tables", dt.name)
 
 #########################################################
 ## 1 -- Align fastqs to the reference genome
 #########################################################
 
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/2_gene_preprocessing/1_rnaseq_pipeline/rnaseq_pipeline.R")
+source("/IPAseek_pipeline/2_gene_preprocessing/1_rnaseq_pipeline/rnaseq_pipeline.R")
 
 pushSTAR(datainfo.location)
 
@@ -27,7 +27,7 @@ pushSTAR(datainfo.location)
 ## 2 -- Create unique bams
 #########################################################
 
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/2_gene_preprocessing/2_bams/scripts/filt_bam_uniq.R")
+source("/IPAseek_pipeline/2_gene_preprocessing/2_bams/scripts/filt_bam_uniq.R")
 
 setwd(project.dir)
 
@@ -37,17 +37,15 @@ filt_bam(datainfo.location,project.dir)
 ## Define project directory
 #########################################################
 
-project.dir <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
+project.dir <- "/IPAseek_pipeline"
 
 #########################################################
 ## Get uniq data_tables
 #########################################################
 
-# dt.name_uniq <- "data_table_test.txt"
-# sample.name <- "test"
+dt.name_uniq <- "data_table_test_uniq.txt"
+sample.name <- "test"
 
-dt.name_uniq <- "data_table_CoMMpass_1.txt"
-sample.name <- "CoMMpass"
 
 datainfo.location_uniq <- file.path(project.dir, "input_data_tables", dt.name_uniq)
 
@@ -55,7 +53,7 @@ datainfo.location_uniq <- file.path(project.dir, "input_data_tables", dt.name_un
 ## 3 -- Get RNA-seq counts
 #########################################################
 
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/2_gene_preprocessing/1_rnaseq_pipeline/rnaseq_pipeline.R")
+source("/IPAseek_pipeline/2_gene_preprocessing/1_rnaseq_pipeline/rnaseq_pipeline.R")
 
 print(datainfo.location_uniq)
 
@@ -81,7 +79,7 @@ runCDSCounts(project.dir, datainfo.location_uniq, count.obj.dir)
 #########################################################
 
 
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/2_gene_preprocessing/1_rnaseq_pipeline/gene_expr.R")    
+source("/IPAseek_pipeline/2_gene_preprocessing/1_rnaseq_pipeline/gene_expr.R")    
 
 start_time <- Sys.time()
 setwd(project.dir)
@@ -90,7 +88,7 @@ count.files.dir <- file.path(paste0(project.dir,"/2_gene_preprocessing/3_gene_ex
 df.sample.info <- read.delim(datainfo.location_uniq, sep = "\t", stringsAsFactors = F)
 
 
-se.gene <- createSE(project.dir, count.files.dir, data.table.path = datainfo.location_uniq, design.colmns = c("CONDITION", "RACE", "GENDER", "ETHNICITY", "VITAL_STATUS", "AGE_AT_INDEX", "ISS_STAGE", "TUMOR_DESCRIPTOR"))
+se.gene <- createSE(project.dir, count.files.dir, data.table.path = datainfo.location_uniq, design.colmns = c("CONDITION"))
 se.gene <- getGeneSE(se.gene)
 
 samples.of.interest <- df.sample.info$NAME 
@@ -123,7 +121,7 @@ print(paste0("execution time:",exec.time))
 #########################################################
 
 
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/2_gene_preprocessing/1_rnaseq_pipeline/expressed_genes_data_retrieved.R")
+source("/IPAseek_pipeline/2_gene_preprocessing/1_rnaseq_pipeline/expressed_genes_data_retrieved.R")
 
 retrieve_geneexpr_data(datainfo.location_uniq,project.dir, sample.name)
 geneexpr_se(project.dir,project.dir, sample.name)
