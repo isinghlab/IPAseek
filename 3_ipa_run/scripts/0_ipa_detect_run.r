@@ -3,7 +3,7 @@
 # Set project directory
 ####################################################################################################################
 
-project.dir <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
+project.dir <- "/IPAseek_pipeline"
 setwd(project.dir)
 
 ####################################################################################################################
@@ -23,7 +23,7 @@ datainfo.location <- file.path(project.dir, "input_data_tables", dt.name)
 # Get the genomic coverage and intron retention
 ####################################################################################################################
 
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/1_ipa_detect.r")
+source("/IPAseek_pipeline/3_ipa_run/scripts/1_ipa_detect.r")
 
 ## Step 1
 ipa_detect(datainfo.location,project.dir, atlas_name)
@@ -39,7 +39,7 @@ intronret_se(project.dir, atlas_name)
 ####################################################################################################################
 
 ## Step 4
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/2_filtering.r")
+source("/IPAseek_pipeline/3_ipa_run/scripts/2_filtering.r")
 filtering(datainfo.location,project.dir, atlas_name)
 
 ####################################################################################################################
@@ -47,7 +47,7 @@ filtering(datainfo.location,project.dir, atlas_name)
 ####################################################################################################################
 
 ## Step 5
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/3_pelt.r")
+source("/IPAseek_pipeline/3_ipa_run/scripts/3_pelt.r")
 pelt(datainfo.location,project.dir, atlas_name)
 
 
@@ -57,7 +57,7 @@ pelt(datainfo.location,project.dir, atlas_name)
 ####################################################################################################################
 
 ## Step 6
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/4_filter_cpts_de.R")
+source("/IPAseek_pipeline/3_ipa_run/scripts/4_filter_cpts_de.R")
 filter_changepoints(datainfo.location,project.dir, atlas_name)
 
 ####################################################################################################################
@@ -65,7 +65,7 @@ filter_changepoints(datainfo.location,project.dir, atlas_name)
 ####################################################################################################################
 
 ## Step 7
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/5_merge.r")
+source("/IPAseek_pipeline/3_ipa_run/scripts/5_merge.r")
 merge_cpts(datainfo.location,project.dir, atlas_name)
 
 ####################################################################################################################
@@ -73,7 +73,7 @@ merge_cpts(datainfo.location,project.dir, atlas_name)
 ####################################################################################################################
 
 ## Step 8
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/6_analyse_exon_structure.r")
+source("/IPAseek_pipeline/3_ipa_run/scripts/6_analyse_exon_structure.r")
 filter_te_run(datainfo.location,project.dir, atlas_name)
 
 ####################################################################################################################
@@ -81,7 +81,7 @@ filter_te_run(datainfo.location,project.dir, atlas_name)
 ####################################################################################################################
 
 ## Step 9
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/7_make_atlas.r")
+source("/IPAseek_pipeline/3_ipa_run/scripts/7_make_atlas.r")
 make_atlas_run(datainfo.location,project.dir, atlas_name)
 
 ####################################################################################################################
@@ -89,7 +89,7 @@ make_atlas_run(datainfo.location,project.dir, atlas_name)
 ####################################################################################################################
 
 # ## Step 10
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/8_calculate_ipa_usage_combined.R")
+source("/IPAseek_pipeline/3_ipa_run/scripts/8_calculate_ipa_usage_combined.R")
 calc_ipa_usage(datainfo.location,project.dir, atlas_name)
 
 ####################################################################################################################
@@ -97,17 +97,17 @@ calc_ipa_usage(datainfo.location,project.dir, atlas_name)
 ####################################################################################################################
 
 ## Step 11
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/9_create_ipa_usage_se.R")
+source("/IPAseek_pipeline/3_ipa_run/scripts/9_create_ipa_usage_se.R")
 ipa_usage_se(datainfo.location,project.dir, atlas_name)
 
 # ####################################################################################################################
 # # Calculate performace for test datasets
 # ####################################################################################################################
 # 
-source("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/3_ipa_run/scripts/cal_precision.r")
+source("/IPAseek_pipeline/3_ipa_run/scripts/cal_precision.r")
 cal_precision(datainfo.location,project.dir, atlas_name)
 # 
 
 
-# make all PROJECT_DIR="/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline" DATA_TABLE="/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_test2.txt" ATLAS_NAME="test2"
+# make all PROJECT_DIR="/IPAseek_pipeline" DATA_TABLE="/IPAseek_pipeline/input_data_tables/data_table_test2.txt" ATLAS_NAME="test2"
 
