@@ -12,6 +12,7 @@ project.dir <- parse_arg(args, "--project_dir",
                           default = Sys.getenv("IPASEEK_PROJECT_DIR", unset = normalizePath(".")))
 dt.name     <- parse_arg(args, "--data_table",  default = "input_data_tables/data_table_test_uniq.txt")
 atlas_name  <- parse_arg(args, "--atlas_name",  default = "ipaseek_run")
+mode        <- parse_arg(args, "--mode",         default = "slurm")
 
 if (nchar(project.dir) > 0) Sys.setenv(IPASEEK_PROJECT_DIR = project.dir)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ datainfo.location <- if (file.exists(dt.name)) dt.name else file.path(project.di
 source(file.path(project.dir, "3_ipa_run", "scripts", "1_ipa_detect.r"))
 
 ## Step 1
-ipa_detect(datainfo.location,project.dir, atlas_name)
+ipa_detect(datainfo.location,project.dir, atlas_name, mode = mode)
 
 ## Step 2
 retrieve_intronreten_data(datainfo.location,project.dir, atlas_name)
@@ -49,7 +50,7 @@ intronret_se(project.dir, atlas_name)
 
 ## Step 4
 source(file.path(project.dir, "3_ipa_run", "scripts", "2_filtering.r"))
-filtering(datainfo.location,project.dir, atlas_name)
+filtering(datainfo.location,project.dir, atlas_name, mode = mode)
 
 ####################################################################################################################
 # Detect changepoints using PELT
@@ -57,7 +58,7 @@ filtering(datainfo.location,project.dir, atlas_name)
 
 ## Step 5
 source(file.path(project.dir, "3_ipa_run", "scripts", "3_pelt.r"))
-pelt(datainfo.location,project.dir, atlas_name)
+pelt(datainfo.location,project.dir, atlas_name, mode = mode)
 
 
 
@@ -67,7 +68,7 @@ pelt(datainfo.location,project.dir, atlas_name)
 
 ## Step 6
 source(file.path(project.dir, "3_ipa_run", "scripts", "4_filter_cpts_de.R"))
-filter_changepoints(datainfo.location,project.dir, atlas_name)
+filter_changepoints(datainfo.location,project.dir, atlas_name, mode = mode)
 
 ####################################################################################################################
 # Merge IPAs for all the chromosomes
@@ -83,7 +84,7 @@ merge_cpts(datainfo.location,project.dir, atlas_name)
 
 ## Step 8
 source(file.path(project.dir, "3_ipa_run", "scripts", "6_analyse_exon_structure.r"))
-filter_te_run(datainfo.location,project.dir, atlas_name)
+filter_te_run(datainfo.location,project.dir, atlas_name, mode = mode)
 
 ####################################################################################################################
 # Make IPA atlas per sample group
@@ -91,7 +92,7 @@ filter_te_run(datainfo.location,project.dir, atlas_name)
 
 ## Step 9
 source(file.path(project.dir, "3_ipa_run", "scripts", "7_make_atlas.r"))
-make_atlas_run(datainfo.location,project.dir, atlas_name)
+make_atlas_run(datainfo.location,project.dir, atlas_name, mode = mode)
 
 ####################################################################################################################
 # Get the IPA usage in all the samples
@@ -99,7 +100,7 @@ make_atlas_run(datainfo.location,project.dir, atlas_name)
 
 # ## Step 10
 source(file.path(project.dir, "3_ipa_run", "scripts", "8_calculate_ipa_usage_combined.R"))
-calc_ipa_usage(datainfo.location,project.dir, atlas_name)
+calc_ipa_usage(datainfo.location,project.dir, atlas_name, mode = mode)
 
 ####################################################################################################################
 # Get SummarizedExperiment object for IPA usage accross the samples

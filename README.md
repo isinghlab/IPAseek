@@ -51,6 +51,51 @@ nextflow run nextflow/main.nf \
 
 ---
 
+## Running without SLURM (`--mode local`)
+
+IPAseek can run on **any machine** — laptop, workstation, or cloud VM — without a SLURM scheduler.
+Pass `--mode local` to replace all `sbatch` submissions with direct in-process function calls.
+Chromosomes are parallelised automatically using `parallel::mclapply` (uses all available cores minus one).
+
+### Local mode via the R entry-point scripts
+
+```bash
+# Stage 2: align + count (no SLURM needed)
+Rscript 2_gene_preprocessing/run_gene_exp.R \
+    --project_dir /path/to/IPAseek \
+    --data_table  input_data_tables/data_table_test.txt \
+    --atlas_name  my_experiment \
+    --mode        local
+
+# Stage 3: IPA detection, filtering, atlas, usage
+Rscript 3_ipa_run/scripts/0_ipa_detect_run.r \
+    --project_dir /path/to/IPAseek \
+    --data_table  input_data_tables/data_table_test_uniq.txt \
+    --atlas_name  my_experiment \
+    --mode        local
+```
+
+### Local mode via Nextflow
+
+```bash
+nextflow run nextflow/main.nf \
+    --data_table input_data_tables/data_table_test.txt \
+    --atlas_name my_experiment \
+    --outdir     results \
+    -profile     local
+```
+
+> **Default behaviour unchanged** — omitting `--mode` (or using `--mode slurm`) is identical to the current HPC behaviour. No regressions for existing SLURM users.
+
+| Mode | Parallelism | SLURM required? |
+|------|-------------|-----------------|
+| `slurm` (default) | `sbatch` per chromosome/sample | ✅ Yes |
+| `local` | `parallel::mclapply` per chromosome | ❌ No |
+
+> ⚠️ On Windows, `mclapply` falls back to sequential execution — this is expected behaviour.
+
+---
+
 ## Input: `data_table.txt`
 
 The only file you need to prepare. A tab-delimited table with one row per sample:

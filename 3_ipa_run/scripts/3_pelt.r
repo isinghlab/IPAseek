@@ -8,7 +8,7 @@ suppressMessages(library(changepoint))
 
 # Prepare and submit per-chromosome PELT changepoint jobs for each sample
 
-pelt <- function(input.data.path, wd, atlas_name) {
+pelt <- function(input.data.path, wd, atlas_name, mode = "slurm") {
   
   # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_test_uniq.txt"
   # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
@@ -95,6 +95,29 @@ pelt <- function(input.data.path, wd, atlas_name) {
       }
 
       # For each chromosome, prepare and submit a PELT job
+      if (mode == "local") {
+        n_cores <- max(1L, parallel::detectCores() - 1L)
+        parallel::mclapply(as.character(chrs), function(chr) {
+          res <- paste0(file.path(results.files.dir, sample), "/pelt_results/ipa_final_", sample, "_filtered_", chr, ".RDS")
+          if (!file.exists(res)) {
+            tryCatch({
+              covPath <- file.path(cvg.loc, sample, "coverage_results", paste0("cov_", sample, "_", chr, ".RDS"))
+              GG.locs <- ref[which(seqnames(ref) == chr)]
+              GG.locs$output       <- file.path(results.files.dir, sample)
+              GG.locs$sample       <- sample
+              GG.locs$covPath      <- covPath
+              GG.locs$filteredPath <- filtering.loc
+              GG.locs$wd           <- wd
+              GG.locs$atlas_name   <- atlas_name
+              runPelt(GG.locs)
+            }, error = function(e) {
+              warning(paste("Error in local runPelt for sample", sample, "chromosome", chr, ":", e$message))
+            })
+          } else {
+            print(paste("file already present for ", sample, chr))
+          }
+        }, mc.cores = n_cores)
+      } else {
       for (chr in chrs) {
         
         # chr = "chr20"
@@ -159,6 +182,7 @@ pelt <- function(input.data.path, wd, atlas_name) {
           warning(paste("Error preparing/submitting job for sample", sample, "chromosome", chr, ":", e$message))
         })}else{ print(paste("file already present for ", sample, chr))}
       }
+      } # end slurm branch
 
       print(paste0("Running algorithm for sample ", sample, "..."))
       print("Your job is submitted")

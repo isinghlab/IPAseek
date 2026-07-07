@@ -8,7 +8,7 @@ library(ggplot2)
 library(scales)             
 
 # Function to calculate IPA usage metrics and submit SLURM jobs for parallel processing
-calc_ipa_usage <- function(input.data.path, wd, atlas_name) {
+calc_ipa_usage <- function(input.data.path, wd, atlas_name, mode = "slurm") {
 # 
   # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_GSE114922_uniq.txt"
   # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/"
@@ -61,6 +61,10 @@ calc_ipa_usage <- function(input.data.path, wd, atlas_name) {
       library_size = library_size
     )
 
+    if (mode == "local") {
+      ipa_usage(paths)
+      print(paste0("IPA usage calculated for sample: ", sample, " (local mode)"))
+    } else {
     # SLURM Script Generation 
     # Save function environment
     ipa_usage.loc <- paste0(slurm.files.dir, "/ipa_usage.Rdata")
@@ -105,7 +109,9 @@ calc_ipa_usage <- function(input.data.path, wd, atlas_name) {
     job_id <- regmatches(job_output, regexpr("\\d+", job_output))[[1]]
     write(job_id, "current_jobs.log", append = TRUE)
     # print(paste("SLURM submission successful for:", sample))
-    print(paste0("Job submitted for sample: ", sample))}
+    print(paste0("Job submitted for sample: ", sample))
+    } # end slurm branch
+    }
   })
 }
 
