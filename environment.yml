@@ -1,0 +1,34 @@
+name: ipaseek
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  # System tools
+  - star>=2.7.10a               # RNA-seq alignment
+  - samtools>=1.17              # BAM processing
+
+  # R base
+  - r-base>=4.3.0
+
+  # CRAN packages
+  - r-data.table
+  - r-gtools
+  - r-dplyr
+  - r-tidyr
+  - r-tidyverse
+  - r-ggplot2
+  - r-scales
+  - r-changepoint             # PELT changepoint detection
+  - r-slurm                   # SLURM job submission from R
+
+  # Bioconductor packages
+  - bioconductor-genomicalignments
+  - bioconductor-genomicfeatures
+  - bioconductor-genomicranges
+  - bioconductor-summarizedexperiment
+  - bioconductor-deseq2
+
+# Usage:
+#   conda env create -f environment.yml
+#   conda activate ipaseek
