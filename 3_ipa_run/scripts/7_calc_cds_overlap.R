@@ -16,8 +16,9 @@ calc_cds_overlap <- function(terminal_exon_gr){
     # Extract the entrez gene ID from the terminal exon
     te_entrezid <- terminal_exon_gr$entrez.id[1]
 
-    # Load pre-annotated CDS and exon data for hg38 genome (must be available at this path)
-    hg38 <- readRDS("/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/1_intron_preprocessing/1_flatten_genome/hg38/hg38_annotated_numbered_cds.rds")
+    # Load pre-annotated CDS and exon data for hg38 genome
+    project_dir <- Sys.getenv("IPASEEK_PROJECT_DIR", unset = ".")
+    hg38 <- readRDS(file.path(project_dir, "1_intron_preprocessing", "1_flatten_genome", "hg38_annotated_numbered_cds.rds"))
     
     # Extract CDS features for this gene
     hg38_cds <- hg38[hg38$exon.anno == "cds" & hg38$entrez.id %in% te_entrezid,]

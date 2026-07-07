@@ -8,23 +8,37 @@ IPAseek is a bioinformatics pipeline to detect **intronic polyadenylation (IPA)*
 
 ---
 
-## Quick Start (Nextflow — Recommended)
+## Quick Start
+
+### Step 1 — One-time setup (run once per cluster)
 
 ```bash
-# 1. Install dependencies
-conda env create -f environment.yml
-conda activate ipaseek
+bash setup.sh
+```
 
-# 2. Run the pipeline
+This will ask for 4 things:
+
+| Prompt | What to provide |
+|--------|----------------|
+| Project directory | Absolute path where IPAseek is installed |
+| STAR index path | Path to your pre-built hg38 STAR genome index (~30 GB) |
+| Annotation directory | Directory containing `hg38.cds.rds` for gene counting |
+| SLURM account | Your cluster account name (leave blank if not required) |
+
+### Step 2 — Run the pipeline
+
+```bash
+source ipaseek.env   # load configuration
+
 nextflow run nextflow/main.nf \
-    -profile slurm \
-    --samplesheet nextflow/assets/samplesheet_template.csv \
-    --star_index /path/to/STAR_genome_index \
-    --intron_annotation 1_intron_preprocessing/3_filtering_gobj/rnhg38_filtered_introns_cds.rds \
+    --data_table input_data_tables/data_table_test.txt \
+    --atlas_name my_experiment \
     --outdir results
 ```
 
-See [`nextflow/README.md`](nextflow/README.md) for full documentation of all parameters, output structure, and SLURM configuration.
+That's it. The pipeline reads your `data_table.txt`, runs all 3 stages, and produces a final `SummarizedExperiment` object in `results/`.
+
+> **Alternative:** use the original R/SLURM scripts (see [Running the Original R/SLURM Pipeline](#running-the-original-rslurm-pipeline) below).
 
 ---
 

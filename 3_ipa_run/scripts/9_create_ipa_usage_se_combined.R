@@ -345,7 +345,7 @@ ipa_atlas<-unlist(ipa_atlas)
 
    ## save the object
    print(paste("Saving SE for : ", sample))
-   saveRDS(ipa.se,paste0("/scratch/user/richa.rashmi.1202/ipa/ipa_pipeline/pelt/results/", atlas_name,"/",atlas_name, "_ipa_usage_se.rds"))
+   saveRDS(ipa.se, file.path(wd, "pelt", "results", atlas_name, paste0(atlas_name, "_ipa_usage_se.rds")))
    
    # ipa.se <- readRDS(paste0("/scratch/user/richa.rashmi.1202/ipa/ipa_pipeline/pelt/results/", atlas_name,"/",atlas_name, "_ipa_usage_se.rds"))
    

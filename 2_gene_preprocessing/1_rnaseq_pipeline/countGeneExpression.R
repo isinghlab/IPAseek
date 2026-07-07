@@ -1,4 +1,6 @@
-source("/scratch/user/richa.rashmi.1202/ipa/ipa_pipeline/2_gene_preprocessing/1_rnaseq_pipeline/rnaseq_pipeline.R")
+# Source rnaseq_pipeline.R relative to this script or via env var
+pipeline_dir <- Sys.getenv("IPASEEK_PROJECT_DIR", unset = dirname(dirname(dirname(normalizePath(sys.frame(1)$ofile, mustWork = FALSE)))))
+source(file.path(pipeline_dir, "2_gene_preprocessing", "1_rnaseq_pipeline", "rnaseq_pipeline.R"))
 ##############################
 # Parse aligner and commands
 args <- commandArgs ()
@@ -18,7 +20,7 @@ print(paired)
 
 ##Get the genome cds object and extract the annotation in relevant format
 genome.cds.name <- sprintf("%s.cds.rds", genome.name)
-annotation.dir <- ("/scratch/user/richa.rashmi.1202/genomes/annotation_objects")
+annotation.dir <- Sys.getenv("IPASEEK_ANNOTATION_DIR", unset = file.path(pipeline_dir, "1_intron_preprocessing", "annotation_objects"))
 genome.cds.location <- file.path(annotation.dir, genome.cds.name)
 ls.annotations <- ExtractAnnotation(genome.cds.location, genome.name, num.cores = 12)
 grl.gene.annotation <- ls.annotations$gene.annotation
