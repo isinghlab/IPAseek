@@ -6,9 +6,18 @@ library(parallel)
 
 # ######################################
 # STAR
-# Indexes on the shared data 
-star.indexes <- c(hg19 = '/scratch/user/richa.rashmi.1202/genomes/homosapiens/ucsc/hg19/sequence/starindex',
-	hg38 = '/scratch/user/richa.rashmi.1202/genomes/homosapiens/ucsc/hg38/sequence/starindex')
+# Read STAR index from environment variable set by setup.sh
+# Falls back to the named vector for backward compatibility
+star_index_env <- Sys.getenv("IPASEEK_STAR_INDEX", unset = "")
+if (nchar(star_index_env) > 0) {
+  star.indexes <- c(hg38 = star_index_env, hg19 = star_index_env)
+} else {
+  # Legacy fallback — update these paths for your cluster
+  star.indexes <- c(
+    hg19 = '/path/to/hg19/STARIndex',
+    hg38 = '/path/to/hg38/STARIndex'
+  )
+}
 
 pushSTAR <- function(dt.location, ncores = 24, additional.args = NULL){
 
