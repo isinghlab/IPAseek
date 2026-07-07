@@ -2,10 +2,44 @@
 
 IPAseek is a bioinformatics pipeline to detect **intronic polyadenylation (IPA)** sites from RNA-seq datasets. It identifies locations within gene introns where premature polyadenylation occurs, quantifies IPA usage across samples, and produces a `SummarizedExperiment` object for downstream analysis.
 
+> **Two execution modes are available:**
+> - **Nextflow DSL2 pipeline** (recommended) — portable, reproducible, runs on any SLURM cluster with a single command. See [`nextflow/README.md`](nextflow/README.md).
+> - **Original R/SLURM scripts** — the underlying R scripts described below, used directly on an HPC cluster.
+
+---
+
+## Quick Start (Nextflow — Recommended)
+
+```bash
+# 1. Install dependencies
+conda env create -f environment.yml
+conda activate ipaseek
+
+# 2. Run the pipeline
+nextflow run nextflow/main.nf \
+    -profile slurm \
+    --samplesheet nextflow/assets/samplesheet_template.csv \
+    --star_index /path/to/STAR_genome_index \
+    --intron_annotation 1_intron_preprocessing/3_filtering_gobj/rnhg38_filtered_introns_cds.rds \
+    --outdir results
+```
+
+See [`nextflow/README.md`](nextflow/README.md) for full documentation of all parameters, output structure, and SLURM configuration.
+
+---
+
 ## Repository Structure
 
 ```
 IPAseek/
+├── nextflow/                      # ★ Nextflow DSL2 pipeline (recommended)
+│   ├── main.nf                    # Entry point
+│   ├── nextflow.config            # Pipeline configuration
+│   ├── conf/                      # SLURM + resource configs
+│   ├── modules/                   # 16 process definitions (stage1–3)
+│   ├── workflows/                 # Stage sub-workflows
+│   ├── assets/                    # Samplesheet template
+│   └── README.md                  # Nextflow-specific documentation
 ├── 1_intron_preprocessing/        # Pre-computed hg38 intron annotation objects
 │   ├── 1_flatten_genome/          # Flattened genome annotation (.rds)
 │   ├── 2_annotation_object/       # CDS-level intron annotation objects (.rds)
@@ -31,22 +65,38 @@ IPAseek/
 ├── input_data_tables/             # Sample metadata tables for test datasets
 │   ├── data_table_test.txt
 │   └── data_table_test2.txt
+├── environment.yml                # Conda environment (R + system tools)
+├── CITATION.cff                   # Machine-readable citation
+├── LICENSE                        # MIT License
 ├── pelt/                          # PELT output directory (created at runtime)
 └── test_input/                    # Small test BAM/FASTQ files
 ```
+
+---
 
 ## Requirements
 
 ### System
 
+- [Nextflow](https://www.nextflow.io/) ≥ 23.04 and Java ≥ 11 *(for Nextflow mode)*
 - A SLURM-based HPC cluster (job submission via `sbatch`)
-- [STAR](https://github.com/alexdobin/STAR) aligner (for RNA-seq alignment in Stage 2)
+- [STAR](https://github.com/alexdobin/STAR) aligner ≥ 2.7.10a
+- [samtools](http://www.htslib.org/) ≥ 1.17
 - A STAR genome index for the reference genome (e.g., hg38)
 
 ### R packages
 
+Install all dependencies at once using conda:
+
+```bash
+conda env create -f environment.yml
+conda activate ipaseek
+```
+
+Or install manually in R:
+
 ```r
-install.packages(c("data.table", "gtools", "dplyr", "tidyr", "tidyverse", "ggplot2", "scales"))
+install.packages(c("data.table", "gtools", "dplyr", "tidyr", "tidyverse", "ggplot2", "scales", "changepoint", "slurmR"))
 
 if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
 BiocManager::install(c(
@@ -56,17 +106,19 @@ BiocManager::install(c(
   "SummarizedExperiment",
   "DESeq2"
 ))
-
-# For SLURM job submission from R
-install.packages("slurmR")
-
-# For PELT changepoint detection
-install.packages("changepoint")
 ```
 
-## Input Data Table Format
+---
 
-All pipeline stages are driven by a tab-delimited sample metadata table. The columns are:
+## Running the Original R/SLURM Pipeline
+
+> If you prefer the Nextflow pipeline, see [`nextflow/README.md`](nextflow/README.md).
+
+Set the project directory and data table variables at the top of each orchestration script before running.
+
+### Input Data Table Format
+
+All pipeline stages are driven by a tab-delimited sample metadata table:
 
 | Column | Description |
 |--------|-------------|
@@ -85,25 +137,15 @@ FILE_PATH	UNIQUE_ID	NAME	GENOME	FASTQ_FILE	CONDITION
 /path/to/bams/uniq_bams	SRR6830274	CLL11	hg38	/path/to/SRR6830274_1.fastq.gz::/path/to/SRR6830274_2.fastq.gz	YES
 ```
 
-A second data table with `_uniq` in the name (`data_table_test_uniq.txt`) is used after unique BAMs have been generated. It points `FILE_PATH` to the unique-BAM directory.
-
-## Running the Pipeline
-
-Set the project directory and data table variables at the top of each orchestration script before running.
-
 ### Stage 1: Intron Preprocessing (pre-computed)
 
 Pre-computed hg38 intron annotation objects are already provided under `1_intron_preprocessing/`. No action is required for hg38 datasets. For other genomes, equivalent annotation `.rds` files must be prepared and placed in the corresponding subdirectories.
 
 ### Stage 2: Gene Expression Preprocessing (`run_gene_exp.R`)
 
-Edit `2_gene_preprocessing/run_gene_exp.R` to set your project directory and data table name, then run it in R:
-
 ```r
 source("2_gene_preprocessing/run_gene_exp.R")
 ```
-
-This script executes five steps in order:
 
 | Step | Function | Description |
 |------|----------|-------------|
@@ -113,25 +155,21 @@ This script executes five steps in order:
 | 4 | `createSE()` / `getGeneSE()` / `getExpressedGenes()` | Builds `SummarizedExperiment` objects for raw counts and RPKM; saves per-sample `.rds` files |
 | 5 | `retrieve_geneexpr_data()` / `geneexpr_se()` | Retrieves and consolidates expression values from the SE objects |
 
-**Key output:** Per-sample gene expression `.rds` files saved to  
+**Key output:** Per-sample gene expression `.rds` files saved to
 `2_gene_preprocessing/3_gene_expression/results/<sample_name>/gene_expression/`.
 
 ### Stage 3: IPA Detection (`3_ipa_run/scripts/0_ipa_detect_run.r`)
 
-Edit `3_ipa_run/scripts/0_ipa_detect_run.r` to set your project directory, data table name, and atlas name, then run it in R:
-
 ```r
 source("3_ipa_run/scripts/0_ipa_detect_run.r")
 ```
-
-This script executes eleven steps in order:
 
 | Step | Function | Description |
 |------|----------|-------------|
 | 1 | `ipa_detect()` | Calculates per-base genomic coverage over introns; submits per-sample SLURM jobs |
 | 2 | `retrieve_intronreten_data()` | Collects intron retention data from completed jobs |
 | 3 | `intronret_se()` | Builds a `SummarizedExperiment` for intron retention across samples |
-| 4 | `filtering()` | Filters introns requiring ≥5 reads over a continuous ≥100 bp stretch (hard-coded thresholds in `2_filtering.r`); submits per-chromosome SLURM jobs |
+| 4 | `filtering()` | Filters introns requiring ≥5 reads over a continuous ≥100 bp stretch; submits per-chromosome SLURM jobs |
 | 5 | `pelt()` | Runs PELT changepoint detection on coverage signals; submits per-chromosome SLURM jobs |
 | 6 | `filter_changepoints()` | Filters changepoints to identify high-confidence IPA events; submits per-sample SLURM jobs |
 | 7 | `merge_cpts()` | Merges per-chromosome IPA calls into per-sample genome-wide results |
@@ -146,6 +184,8 @@ This script executes eleven steps in order:
 - `<atlas_name>_<sample>_ipa_usage_atlas.csv` — per-sample IPA usage table
 - `<atlas_name>_ipa_usage_se.RDS` — multi-assay `SummarizedExperiment` with IPA usage, read counts, and RPKM across all samples
 
+---
+
 ## Test Run with Example Data
 
 The `input_data_tables/` directory contains two small test metadata tables:
@@ -153,11 +193,31 @@ The `input_data_tables/` directory contains two small test metadata tables:
 - `data_table_test.txt` — used for alignment and BAM generation (Stage 2)
 - `data_table_test2.txt` — alternative test dataset
 
-After editing the project directory paths inside `run_gene_exp.R` and `0_ipa_detect_run.r`, you can run the full pipeline on the test data to verify your setup.
+For Nextflow, edit `nextflow/assets/samplesheet_template.csv` with your paths and run:
+
+```bash
+nextflow run nextflow/main.nf -profile slurm \
+    --samplesheet nextflow/assets/samplesheet_template.csv \
+    --star_index /path/to/STAR_index \
+    --intron_annotation 1_intron_preprocessing/3_filtering_gobj/rnhg38_filtered_introns_cds.rds \
+    --outdir results
+```
+
+---
 
 ## Notes
 
-- IPAseek uses SLURM (`sbatch`) to parallelize compute-intensive steps across chromosomes and samples. It requires a working SLURM environment. The `slurmR` R package is used to detect SLURM availability.
+- IPAseek uses SLURM (`sbatch`) to parallelize compute-intensive steps across chromosomes and samples.
 - The `master_workflow.R` script provides an alternative orchestration layer that polls SLURM job status between steps using `sacct`.
 - All pre-computed annotation objects shipped in `1_intron_preprocessing/` are for **hg38**. Analyses on other genome builds require regenerating these objects.
 - The `pelt/` directory is created automatically at runtime and holds all intermediate and final results.
+
+---
+
+## Citation
+
+If you use IPAseek in your research, please cite:
+
+> Rashmi *et al.* (2026). *Cancer-associated dynamics and potential regulators of intronic polyadenylation revealed by IPAFinder using standard RNA-seq data*. **Genome Research**, 36(6):1250. https://genome.cshlp.org/content/36/6/1250
+
+A machine-readable citation is available via the **"Cite this repository"** button on GitHub (powered by [`CITATION.cff`](CITATION.cff)).
