@@ -7,29 +7,28 @@ library(gtools)
 library(ggplot2)
 
       
-calc_ipa_usage <- function(input.data.path,wd, atlas_name){
+calc_ipa_usage <- function(input.data.path, wd, atlas_name, mode = "slurm"){
+# 
 # 
 # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_combined_uniq.txt"
 # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
 # atlas_name <- "combined"
-
+slurm.files.dir <- file.path(wd,"pelt", "slurm_submission_ipa_usage")
 slurm.files.dir <- file.path(wd,"pelt", "slurm_submission_ipa_usage")
 logs.files.dir <- file.path(wd,"pelt", "logs_ipa_usage")
 
-
+if(!dir.exists(slurm.files.dir )){
 if(!dir.exists(slurm.files.dir )){
         dir.create(slurm.files.dir )
    }
-
+if(!dir.exists(logs.files.dir )){
 if(!dir.exists(logs.files.dir )){
         dir.create(logs.files.dir )
    }
 
 
-
 data.input <- read.delim(input.data.path, sep="\t", header=T)
-data.input <- data.input[178:198,]
-
+data.input <- read.delim(input.data.path, sep="\t", header=T)
 sampleNames <- paste0( as.character(data.input$ATLAS_NAME),"," ,as.character(data.input$NAME))
 # sampleNames <- tail(sampleNames,15)
 
@@ -67,8 +66,11 @@ sampleNames <- paste0( as.character(data.input$ATLAS_NAME),"," ,as.character(dat
         ipa_atlas_name = atlas_name1,
         library_size = library_size
       )
-      
 
+      if (mode == "local") {
+        ipa_usage(paths)
+        print(paste0("Running ... IPA usage for ", sample, " (local mode)."))
+      } else {
       ipa_usage.loc<-paste0(slurm.files.dir,"/ipa_usage.Rdata")
       save("ipa_usage", file=ipa_usage.loc)
           
@@ -108,10 +110,10 @@ sampleNames <- paste0( as.character(data.input$ATLAS_NAME),"," ,as.character(dat
 
          
        print(paste0("Running ... ", "job for ", sample, " submitted."))
+       } # end slurm branch
 
 }
 })
-
 
 
 

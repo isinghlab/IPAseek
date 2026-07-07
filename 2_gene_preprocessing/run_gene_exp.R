@@ -16,6 +16,7 @@ star.index.path  <- parse_arg(args, "--star_index",
                                default = Sys.getenv("IPASEEK_STAR_INDEX", unset = ""))
 annotation.dir.arg <- parse_arg(args, "--annotation_dir",
                                default = Sys.getenv("IPASEEK_ANNOTATION_DIR", unset = ""))
+mode             <- parse_arg(args, "--mode", default = "slurm")
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Set env vars so sourced scripts pick them up
@@ -39,7 +40,7 @@ datainfo.location <- dt.name
 
 source(file.path(project.dir, "2_gene_preprocessing", "1_rnaseq_pipeline", "rnaseq_pipeline.R"))
 
-pushSTAR(datainfo.location)
+pushSTAR(datainfo.location, mode = mode)
 
 #########################################################
 ## 2 -- Create unique bams
@@ -49,7 +50,7 @@ source(file.path(project.dir, "2_gene_preprocessing", "2_bams", "scripts", "filt
 
 setwd(project.dir)
 
-filt_bam(datainfo.location,project.dir)
+filt_bam(datainfo.location, project.dir, mode = mode)
 
 # ── Auto-generate the _uniq data table after BAM filtering ───────────────────
 generate_uniq_table <- function(dt.path, project.dir) {
@@ -96,7 +97,7 @@ if(!dir.exists(count.obj.dir)){
  	}
 
 
-runCDSCounts(project.dir, datainfo.location_uniq, count.obj.dir)
+runCDSCounts(project.dir, datainfo.location_uniq, count.obj.dir, mode = mode)
 
 
 #########################################################

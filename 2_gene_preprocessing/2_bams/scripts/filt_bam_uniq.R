@@ -1,5 +1,5 @@
 
-filt_bam<-function(dt.location,wd){
+filt_bam<-function(dt.location,wd, mode = "slurm"){
 
 
 slurm.files.dir <- file.path(wd, "slurm_submission")
@@ -46,6 +46,10 @@ paths <- data.frame(bam.loc)
 paths$bam.dir <- bam.dir
 paths$sample <- sample
 
+if (mode == "local") {
+  filtBamUniq(paths)
+  print(paste0("Running ... BAM filtering for ", sample, " (local mode)."))
+} else {
 filtBamUniq.loc<-paste0(slurm.files.dir,"/filtBamUniq.Rdata")
 save("filtBamUniq", file=filtBamUniq.loc)
     
@@ -89,6 +93,7 @@ sink()
 
    
  print(paste0("Running ... ", "job for ", sample, " submitted."))
+ } # end slurm branch
 
 
 

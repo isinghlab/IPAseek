@@ -4,15 +4,14 @@ suppressMessages(library(data.table))
 suppressMessages(library(gtools))
 suppressMessages(library(dplyr))
 suppressMessages(library(tidyr))
-suppressMessages(library(slurmR))
 
-ipa_detect <- function(input.data.path, wd, atlas_name) {
+ipa_detect <- function(input.data.path, wd, atlas_name, mode = "slurm") {
   
   # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_GSE114922_uniq.txt"
   # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
   # atlas_name <- "GSE114922"
   
-  if(slurm_available()){
+  if(mode == "slurm" || mode != "local"){
 
   # Setup & Initialization
 
@@ -273,7 +272,129 @@ ipa_detect <- function(input.data.path, wd, atlas_name) {
   })
   
   message("Pipeline execution completed")
-  invisible(TRUE)} else{ "Slurm not available"}
+  invisible(TRUE)} else {
+
+  # ── Local mode: run ipaDetect directly using mclapply for parallelism ────────
+  n_cores <- max(1L, parallel::detectCores() - 1L)
+
+  tryCatch({
+    results.files.dir <- file.path(wd, "pelt", "results", atlas_name)
+    logs.files.dir    <- file.path(wd, "pelt", "logs", atlas_name)
+
+    safeDirCreate <- function(dir_path) {
+      tryCatch({
+        if (!dir.exists(dir_path)) dir.create(dir_path, recursive = TRUE, showWarnings = TRUE)
+      }, error = function(e) {
+        stop(paste("Directory creation failed:", dir_path, "\nError:", e$message))
+      })
+    }
+    safeDirCreate(results.files.dir)
+    safeDirCreate(logs.files.dir)
+
+    data.input <- tryCatch({
+      read.delim(input.data.path, sep = "\t", header = TRUE)
+    }, error = function(e) {
+      stop(paste("Failed to read input data:", input.data.path, "\nError:", e$message))
+    })
+
+    sampleNames <- as.character(data.input$NAME)
+
+    processLocalSample <- function(sample) {
+      print(sample)
+      tryCatch({
+        uniq.bam.dir <- as.character(subset(data.input, NAME == sample)$FILE_PATH)
+        uniq.bam.loc <- file.path(uniq.bam.dir, paste0(sample, "_uniq.bam"))
+        reads.dir    <- file.path(uniq.bam.dir, paste0(sample, "_reads.rds"))
+
+        if (!file.exists(uniq.bam.loc)) {
+          print("No BAM file available")
+          print("Use rds object containing Reads")
+          if (!file.exists(reads.dir)) {
+            stop("Cannot proceed. No bam or read file available")
+          } else {
+            lib_size_val <- subset(data.input, NAME == sample)$LIB_SIZE
+            if (length(lib_size_val) > 0 && !is.na(lib_size_val) && lib_size_val != "") {
+              write(lib_size_val, paste0(results.files.dir, "/", sample, "_library_size"))
+            } else {
+              stop("Cannot proceed. Library Size not provided")
+            }
+          }
+        } else {
+          if (!file.exists(reads.dir)) {
+            rng_chr <- as(seqinfo(BamFile(uniq.bam.loc)), "GRanges")
+            rng_chr$param <- paste0(seqnames(rng_chr), ":1-", end(rng_chr), ":", strand(rng_chr))
+            bf <- BamFile(uniq.bam.loc)
+            reads <- readGAlignments(bf, use.names = TRUE,
+                                     param = ScanBamParam(which = rng_chr))
+            saveRDS(reads, reads.dir)
+          }
+          if (!file.exists(paste0(results.files.dir, "/", sample, "_library_size"))) {
+            system(paste0("samtools view -c -F 4 ", uniq.bam.loc, ">",
+                          results.files.dir, "/", sample, "_library_size"))
+          }
+        }
+
+        exprs.loc <- file.path(wd, "2_gene_preprocessing", "3_gene_expression", "results",
+                                atlas_name, "gene_expression_results",
+                                paste0(sample, "_rpkm_df.rds"))
+        exprGenes <- tryCatch({
+          readRDS(exprs.loc) %>% as.data.frame() %>% na.omit()
+        }, error = function(e) {
+          stop(paste("Failed to load expression data for:", sample, "\nError:", e$message))
+        })
+
+        introns.file.dir <- file.path(wd, "1_intron_preprocessing", "3_filtering_gobj",
+                                       "rnhg38_filtered_introns_cds.rds")
+        rn_introns <- tryCatch({
+          readRDS(introns.file.dir) %>% .[names(.) %in% rownames(exprGenes)]
+        }, error = function(e) {
+          stop(paste("Intron data processing failed for:", sample, "\nError:", e$message))
+        })
+
+        exp.files.dir <- file.path(results.files.dir, "exp_introns_results")
+        if (!dir.exists(exp.files.dir)) dir.create(exp.files.dir, recursive = TRUE)
+        saveRDS(rn_introns, file.path(exp.files.dir, paste0(sample, ".RDS")))
+
+        chrs <- unique(seqnames(rn_introns))
+
+        sample.results.dir <- file.path(results.files.dir, sample)
+        if (!dir.exists(sample.results.dir)) dir.create(sample.results.dir, recursive = TRUE)
+
+        parallel::mclapply(as.character(chrs), function(chr) {
+          res.file <- paste0(results.files.dir, "/", sample,
+                             "/retention_results/retained_introns_sel_", sample, "_", chr, ".csv")
+          if (!file.exists(res.file)) {
+            tryCatch({
+              GG.locs <- rn_introns[seqnames(rn_introns) == chr]
+              GG.locs$output    <- file.path(results.files.dir, sample)
+              GG.locs$readspath <- reads.dir
+              GG.locs$sample    <- sample
+              GG.locs$wd        <- wd
+              GG.locs$atlas_name <- atlas_name
+              ipaDetect(GG.locs)
+            }, error = function(e) {
+              message(paste("Chromosome processing failed for:", chr, "\nError:", e$message))
+            })
+          }
+        }, mc.cores = n_cores)
+
+        message(paste0("Successfully processed sample (local): ", sample))
+      }, error = function(e) {
+        message(paste("Sample processing failed for:", sample, "\nError:", e$message))
+        return(NULL)
+      })
+    }
+
+    sapply(sampleNames, processLocalSample)
+
+  }, error = function(e) {
+    message(paste("Critical pipeline error:", e$message))
+    return(NULL)
+  })
+
+  message("Pipeline execution completed (local mode)")
+  invisible(TRUE)
+  }
 }
 
 

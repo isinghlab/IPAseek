@@ -10,7 +10,7 @@ library(ggplot2)
 library(scales)            
 
 # Main processing function 
-filter_te_run <- function(input.data.path, wd, atlas_name) {
+filter_te_run <- function(input.data.path, wd, atlas_name, mode = "slurm") {
   
   # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_test2.txt"
   # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
@@ -130,13 +130,17 @@ filter_te_run <- function(input.data.path, wd, atlas_name) {
       GG.locs$library_size <- library_size
       GG.locs$wd <- wd
 
+      if (mode == "local") {
+        filter_te(GG.locs)
+        print(paste0("Running algorithm for sample ", sample_nam, "... (local mode)"))
+      } else {
       # Save GG.locs object for use in the job script
-      results.sample.dir <- file.path(slurm.files.dir, sample_nam)
-      GG.locs.rdata.path <- file.path(results.sample.dir, paste0(sample_nam, "_", sample_nam, "GGlocs.Rdata"))
+      results.sample.dir2 <- file.path(slurm.files.dir, sample_nam)
+      GG.locs.rdata.path <- file.path(results.sample.dir2, paste0(sample_nam, "_", sample_nam, "GGlocs.Rdata"))
       save(GG.locs, file = GG.locs.rdata.path)
 
       # Create the R script for this sample
-      script.name <- file.path(results.sample.dir, paste0(sample_nam, "_filter_teRun.R"))
+      script.name <- file.path(results.sample.dir2, paste0(sample_nam, "_filter_teRun.R"))
       sink(file = script.name)
       cat("
             library(GenomicAlignments)
@@ -152,7 +156,7 @@ filter_te_run <- function(input.data.path, wd, atlas_name) {
       sink()
 
       # Create the SLURM bash script for this job
-      bash.file.location <- file.path(results.sample.dir, paste0(sample_nam, "submit.sh"))
+      bash.file.location <- file.path(results.sample.dir2, paste0(sample_nam, "submit.sh"))
       slurm.jobname <- sprintf("#SBATCH --job-name=%s_filter_te_", sample_nam)
       slurm.time <- "#SBATCH --time=00:30:00"
       slurm.mem <- "#SBATCH --mem=32G"
@@ -172,7 +176,9 @@ filter_te_run <- function(input.data.path, wd, atlas_name) {
       print(paste("SLURM submission successful for:", sample_nam))
 
       print(paste0("Running algorithm for sample ", sample_nam, "..."))
-      print("Your job is submitted")}
+      print("Your job is submitted")
+      } # end slurm branch
+      }
     }, error = function(e) {
       warning(paste("Error processing sample", sample_nam, ":", e$message))
     })

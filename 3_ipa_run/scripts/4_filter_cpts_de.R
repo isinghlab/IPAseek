@@ -16,7 +16,7 @@ library(DESeq2)
 #' @param atlas_name Name of the dataset/atlas
 #' @return Submits SLURM jobs for each sample
 
-filter_changepoints <- function(input.data.path, wd, atlas_name) {
+filter_changepoints <- function(input.data.path, wd, atlas_name, mode = "slurm") {
 
   # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_GSE184264_uniq.txt"
   # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
@@ -140,6 +140,10 @@ filter_changepoints <- function(input.data.path, wd, atlas_name) {
       GG.locs.rdata.path <- file.path(results.sample.dir, paste0(sample_nam, "_", sample_nam, "GGlocs.Rdata"))
       save(GG.locs, file = GG.locs.rdata.path)
 
+      if (mode == "local") {
+        filterCpts(GG.locs)
+        print(paste0("Running algorithm for sample ", sample_nam, "... (local mode)"))
+      } else {
       # Create the R script for this sample
       script.name <- file.path(results.sample.dir, paste0(sample_nam, "_filterCptsRun.R"))
       sink(file = script.name)
@@ -178,6 +182,7 @@ filter_changepoints <- function(input.data.path, wd, atlas_name) {
 
       print(paste0("Running algorithm for sample ", sample_nam, "..."))
       print("Your job is submitted")
+      } # end slurm branch
     }, error = function(e) {
       warning(paste("Error processing sample", sample_nam, ":", e$message))
     })

@@ -2,7 +2,7 @@ suppressMessages(library(GenomicAlignments))
 
 # Filtering pipeline: prepares and submits per-chromosome filtering jobs for each sample
 
-filtering <- function(input.data.path, wd, atlas_name) {
+filtering <- function(input.data.path, wd, atlas_name, mode = "slurm") {
 
   # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_GSE184264_uniq.txt"
   # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
@@ -89,6 +89,26 @@ filtering <- function(input.data.path, wd, atlas_name) {
       }
 
       # For each chromosome, prepare and submit a filtering job
+      if (mode == "local") {
+        n_cores <- max(1L, parallel::detectCores() - 1L)
+        parallel::mclapply(as.character(chrs), function(chr) {
+          res_file <- paste0(results.files.dir, "/", sample, "/filtering_results/filtered_", sample, "_", chr, ".RDS")
+          if (!file.exists(res_file)) {
+            tryCatch({
+              covPath <- file.path(cvg.loc, sample, "coverage_results", paste0("cov_", sample, "_", chr, ".RDS"))
+              GG.locs <- ref[which(seqnames(ref) == chr)]
+              GG.locs$output <- file.path(results.files.dir, sample)
+              GG.locs$sample <- sample
+              GG.locs$covPath <- covPath
+              GG.locs$wd <- wd
+              GG.locs$atlas_name <- atlas_name
+              goFilt(GG.locs)
+            }, error = function(e) {
+              warning(paste("Error in local goFilt for sample", sample, "chromosome", chr, ":", e$message))
+            })
+          }
+        }, mc.cores = n_cores)
+      } else {
       for (chr in chrs) {
         res_file <- paste0(results.files.dir,"/" , sample, "/filtering_results/filtered_", sample,"_",chr, ".RDS")
         
@@ -147,6 +167,7 @@ filtering <- function(input.data.path, wd, atlas_name) {
           warning(paste("Error preparing/submitting job for sample", sample, "chromosome", chr, ":", e$message))
         })}
       }
+      } # end slurm branch
 
       print(paste0("Running algorithm for sample ", sample, "..."))
       print("Your job is submitted")
