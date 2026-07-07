@@ -5,8 +5,9 @@ include { STAGE1 } from './workflows/stage1'
 include { STAGE2 } from './workflows/stage2'
 include { STAGE3 } from './workflows/stage3'
 
-<<<<<<< HEAD
-// Validate required params
+// ---------------------------------------------------------------------------
+// Validate required parameters
+// ---------------------------------------------------------------------------
 def checkParams() {
     if (!params.data_table && !params.samplesheet) {
         error "Please provide either --data_table (IPAseek TSV) or --samplesheet (CSV)"
@@ -19,9 +20,11 @@ def checkParams() {
 workflow {
     checkParams()
 
-    // ── Parse input: native data_table.txt or CSV samplesheet ──────────────
+    // ---------------------------------------------------------------------------
+    // Parse input: native data_table.txt (TSV) or standard CSV samplesheet
+    // ---------------------------------------------------------------------------
     if (params.data_table) {
-        // Native IPAseek TSV format: FILE_PATH, UNIQUE_ID, NAME, GENOME, FASTQ_FILE, CONDITION
+        // Native IPAseek TSV: FILE_PATH, UNIQUE_ID, NAME, GENOME, FASTQ_FILE, CONDITION
         reads_ch = Channel
             .fromPath(params.data_table)
             .splitCsv(header: true, sep: '\t')
@@ -35,45 +38,25 @@ workflow {
                 )
             }
     } else {
-        // Standard CSV samplesheet
+        // Standard CSV samplesheet: sample, condition, fastq_1, fastq_2
         reads_ch = Channel
             .fromPath(params.samplesheet)
             .splitCsv(header: true)
             .map { row -> tuple(row.sample, row.condition, file(row.fastq_1), file(row.fastq_2)) }
     }
 
-    // ── Stage 1: Intron annotation ──────────────────────────────────────────
-    if (params.intron_annotation && file(params.intron_annotation).exists()) {
-        intron_annotation = Channel.fromPath(params.intron_annotation)
-    } else {
-        STAGE1(Channel.fromPath("${projectDir}/../1_intron_preprocessing/3_filtering_gobj"))
-        intron_annotation = STAGE1.out.intron_annotation
-    }
-
-    // ── Stage 2: Gene expression preprocessing ─────────────────────────────
-    STAGE2(reads_ch, params.star_index, intron_annotation)
-
-    // ── Stage 3: IPA detection ─────────────────────────────────────────────
-=======
-workflow {
-
-    // ---------------------------------------------------------------------------
-    // Parse samplesheet
-    // ---------------------------------------------------------------------------
-    reads_ch = Channel
-        .fromPath(params.samplesheet)
-        .splitCsv(header: true)
-        .map { row -> tuple(row.sample, row.condition, file(row.fastq_1), file(row.fastq_2)) }
-
     // ---------------------------------------------------------------------------
     // Stage 1: Intron preprocessing
-    // Use pre-computed annotation (params.intron_annotation) when provided,
-    // otherwise re-run filtering via STAGE1.
+    // Use pre-computed annotation when provided; otherwise re-run FILTER_INTRONS
     // ---------------------------------------------------------------------------
-    if (params.intron_annotation) {
-        intron_annotation = Channel.fromPath(params.intron_annotation)
+    def annotation_rds = params.intron_annotation
+        ?: "${projectDir}/../1_intron_preprocessing/3_filtering_gobj/rnhg38_filtered_introns_cds.rds"
+
+    if (file(annotation_rds).exists()) {
+        intron_annotation = Channel.fromPath(annotation_rds)
     } else {
-        STAGE1(Channel.fromPath(params.annotation_dir))
+        STAGE1(Channel.fromPath(params.annotation_dir
+            ?: "${projectDir}/../1_intron_preprocessing/3_filtering_gobj"))
         intron_annotation = STAGE1.out.intron_annotation
     }
 
@@ -85,7 +68,6 @@ workflow {
     // ---------------------------------------------------------------------------
     // Stage 3: IPA detection
     // ---------------------------------------------------------------------------
->>>>>>> origin/main
     STAGE3(
         STAGE2.out.uniq_bams,
         STAGE2.out.rpkm_per_sample,
