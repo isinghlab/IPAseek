@@ -218,6 +218,6 @@ nextflow run nextflow/main.nf -profile slurm \
 
 If you use IPAseek in your research, please cite:
 
-> Rashmi *et al.* (2026). *Cancer-associated dynamics and potential regulators of intronic polyadenylation revealed by IPAFinder using standard RNA-seq data*. **Genome Research**, 36(6):1250. https://genome.cshlp.org/content/36/6/1250
+> Rashmi *et al.* (2026). *Dynamics of intronic polyadenylation in the hematopoietic lineage and its regulation by DNA methylation*. **Genome Research**, 36(6):1250. https://genome.cshlp.org/content/36/6/1250
 
 A machine-readable citation is available via the **"Cite this repository"** button on GitHub (powered by [`CITATION.cff`](CITATION.cff)).
