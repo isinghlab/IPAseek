@@ -1,0 +1,5 @@
+sample,condition,fastq_1,fastq_2,genome
+SAMPLE1,treatment,/path/to/sample1_R1.fastq.gz,/path/to/sample1_R2.fastq.gz,hg38
+SAMPLE2,control,/path/to/sample2_R1.fastq.gz,/path/to/sample2_R2.fastq.gz,hg38
+CLL7,treatment,/path/to/SRR6830273_1.fastq.gz,/path/to/SRR6830273_2.fastq.gz,hg38
+CLL11,control,/path/to/SRR6830274_1.fastq.gz,/path/to/SRR6830274_2.fastq.gz,hg38
