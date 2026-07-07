@@ -7,7 +7,7 @@ dependencies:
   # R base
   - r-base>=4.3.0
 
-  # CRAN packages
+  # CRAN packages (available on conda-forge)
   - r-data.table
   - r-gtools
   - r-dplyr
@@ -16,7 +16,6 @@ dependencies:
   - r-ggplot2
   - r-scales
   - r-changepoint             # PELT changepoint detection
-  - r-slurmr                  # SLURM job submission from R (was incorrectly r-slurm)
 
   # Bioconductor packages
   - bioconductor-genomicalignments
@@ -25,21 +24,24 @@ dependencies:
   - bioconductor-summarizedexperiment
   - bioconductor-deseq2
 
+  # Post-install: run this once after activating the environment:
+  #   Rscript -e 'install.packages("slurmR")'
+  # slurmR is only available from CRAN, not conda.
+  # It is only needed on HPC clusters for SLURM job submission (Stage 2/3).
+
 # ── HPC-only tools (Linux clusters only) ────────────────────────────────────
 # STAR and samtools are only needed for Stage 2 (alignment).
 # They are Linux-only and cannot be installed on macOS ARM (osx-arm64).
-# On a Linux HPC cluster, install separately:
+# On a Linux HPC cluster, install separately after env creation:
 #
-#   conda install -n ipaseek -c bioconda star>=2.7.10a samtools>=1.17
-#
-# Or add them back to this file when creating the env on a Linux cluster:
-#
-#   - star>=2.7.10a               # RNA-seq alignment (Linux only)
-#   - samtools>=1.17              # BAM processing (Linux only)
+#   conda install -n ipaseek -c bioconda "star>=2.7.10a" "samtools>=1.17"
 
 # Usage:
 #   conda env create -f environment.yml      # works on macOS + Linux
 #   conda activate ipaseek
 #
+#   # Install slurmR from CRAN (HPC clusters only):
+#   Rscript -e 'install.packages("slurmR")'
+#
 #   # On Linux HPC (for Stage 2 alignment):
-#   conda install -n ipaseek -c bioconda star>=2.7.10a samtools>=1.17
+#   conda install -n ipaseek -c bioconda "star>=2.7.10a" "samtools>=1.17"
