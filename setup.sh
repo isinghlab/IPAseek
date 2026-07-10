@@ -15,7 +15,8 @@ echo "╚═══════════════════════�
 echo ""
 
 # ── Helper functions ──────────────────────────────────────────────────────────
-prompt_value() {
+# prompt_required: loops until user provides a non-blank value (or accepts default)
+prompt_required() {
   local var_name="$1"
   local prompt="$2"
   local default="${3:-}"
@@ -34,6 +35,22 @@ prompt_value() {
   eval "$var_name='$value'"
 }
 
+# prompt_optional: accepts blank input (returns empty string if skipped)
+prompt_optional() {
+  local var_name="$1"
+  local prompt="$2"
+  local default="${3:-}"
+  local value
+
+  if [[ -n "$default" ]]; then
+    read -rp "${prompt} [${default}]: " value
+    value="${value:-$default}"
+  else
+    read -rp "${prompt} (press Enter to skip): " value
+  fi
+  eval "$var_name='$value'"
+}
+
 check_tool() {
   local tool="$1"
   if command -v "$tool" &>/dev/null; then
@@ -45,7 +62,7 @@ check_tool() {
 
 # ── 1. Project directory ──────────────────────────────────────────────────────
 echo "── Step 1: Project directory ─────────────────────────────────"
-prompt_value PROJECT_DIR "Absolute path to your IPAseek project directory" "$SCRIPT_DIR"
+prompt_required PROJECT_DIR "Absolute path to your IPAseek project directory" "$SCRIPT_DIR"
 echo ""
 
 # ── 2. STAR genome index ──────────────────────────────────────────────────────
@@ -53,10 +70,13 @@ echo "── Step 2: STAR genome index ─────────────�
 echo "  The STAR index for hg38 is typically ~30 GB."
 echo "  Build it with: sbatch 2_gene_preprocessing/1_rnaseq_pipeline/starindexgenerate.sh"
 echo "  (edit that script first to point to your genome FASTA and GTF)"
+echo "  Skip this step if you are only running Stage 3 (IPA detection) locally."
 echo ""
-prompt_value STAR_INDEX "Path to your STAR genome index directory (hg38)" ""
-if [[ ! -d "$STAR_INDEX" ]]; then
+prompt_optional STAR_INDEX "Path to your STAR genome index directory (hg38)"
+if [[ -n "$STAR_INDEX" && ! -d "$STAR_INDEX" ]]; then
   echo "  ⚠ Warning: directory not found — make sure to build the index before running"
+elif [[ -z "$STAR_INDEX" ]]; then
+  echo "  ℹ Skipped — set IPASEEK_STAR_INDEX later if running Stage 2 (alignment)"
 fi
 echo ""
 
@@ -64,36 +84,45 @@ echo ""
 echo "── Step 3: Genome annotation object directory ────────────────"
 echo "  This directory must contain hg38.cds.rds (used for gene counting)."
 echo "  If you have run IPAseek before, this is your annotation_objects/ directory."
-prompt_value ANNOTATION_DIR "Path to directory containing hg38.cds.rds" ""
-if [[ ! -f "${ANNOTATION_DIR}/hg38.cds.rds" ]]; then
+echo "  Skip this step if you are only running Stage 3 (IPA detection) locally."
+prompt_optional ANNOTATION_DIR "Path to directory containing hg38.cds.rds"
+if [[ -n "$ANNOTATION_DIR" && ! -f "${ANNOTATION_DIR}/hg38.cds.rds" ]]; then
   echo "  ⚠ Warning: hg38.cds.rds not found at ${ANNOTATION_DIR}"
+elif [[ -z "$ANNOTATION_DIR" ]]; then
+  echo "  ℹ Skipped — set IPASEEK_ANNOTATION_DIR later if running Stage 2"
 fi
 echo ""
 
 # ── 4. SLURM account (optional) ───────────────────────────────────────────────
 echo "── Step 4: SLURM account (optional) ─────────────────────────"
-echo "  Leave blank if your cluster does not require --account"
+echo "  Leave blank if running locally (--mode local) or if your cluster"
+echo "  does not require --account."
 # Try to auto-detect
 AUTO_ACCOUNT=""
 if command -v sacctmgr &>/dev/null; then
   AUTO_ACCOUNT=$(sacctmgr show user "$(whoami)" -n format=Account 2>/dev/null | awk '{print $1}' | head -1 || true)
 fi
-prompt_value SLURM_ACCOUNT "SLURM account name" "$AUTO_ACCOUNT"
+prompt_optional SLURM_ACCOUNT "SLURM account name" "$AUTO_ACCOUNT"
+if [[ -z "$SLURM_ACCOUNT" ]]; then
+  echo "  ℹ Skipped — set IPASEEK_SLURM_ACCOUNT later if running on an HPC cluster"
+fi
 echo ""
 
 # ── 5. Conda environment name ─────────────────────────────────────────────────
 echo "── Step 5: Conda environment ─────────────────────────────────"
-prompt_value CONDA_ENV "Conda environment name for IPAseek" "ipaseek"
+prompt_required CONDA_ENV "Conda environment name for IPAseek" "ipaseek"
 echo ""
 
 # ── Check required tools ──────────────────────────────────────────────────────
 echo "── Checking required tools ───────────────────────────────────"
 check_tool R
 check_tool Rscript
+check_tool conda
+echo ""
+echo "  ── HPC-only tools (skip if running locally) ──"
 check_tool STAR
 check_tool samtools
 check_tool nextflow
-check_tool conda
 echo ""
 
 # ── Write config file ─────────────────────────────────────────────────────────
@@ -115,17 +144,18 @@ echo "Configuration saved to: $CONFIG_FILE"
 echo ""
 echo "To run the pipeline:"
 echo ""
-echo "  # Option A: Nextflow (recommended)"
+echo "  # Local mode (no SLURM — works on any machine)"
+echo "  source ipaseek.env"
+echo "  Rscript 3_ipa_run/scripts/0_ipa_detect_run.r \\"
+echo "      --project_dir \$IPASEEK_PROJECT_DIR \\"
+echo "      --data_table  input_data_tables/data_table_test2_local.txt \\"
+echo "      --atlas_name  test2 \\"
+echo "      --mode        local"
+echo ""
+echo "  # SLURM/HPC mode"
 echo "  source ipaseek.env"
 echo "  nextflow run nextflow/main.nf \\"
 echo "      --data_table input_data_tables/data_table_test.txt \\"
 echo "      --atlas_name my_experiment \\"
 echo "      --outdir results"
-echo ""
-echo "  # Option B: Original R/SLURM scripts"
-echo "  source ipaseek.env"
-echo "  Rscript 2_gene_preprocessing/run_gene_exp.R \\"
-echo "      --project_dir \$IPASEEK_PROJECT_DIR \\"
-echo "      --data_table input_data_tables/data_table_test.txt \\"
-echo "      --atlas_name my_experiment"
 echo ""
