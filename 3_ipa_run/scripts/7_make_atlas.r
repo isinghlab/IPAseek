@@ -5,7 +5,7 @@ library(GenomicRanges)
 library(splicejam)       
 
 # Function to set up and submit a SLURM job for running the make_atlas function
-make_atlas_run <- function(input.data.path, wd, atlas_name){
+make_atlas_run <- function(input.data.path, wd, atlas_name, mode = "slurm"){
   
   # input.data.path <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/input_data_tables/data_table_combined_uniq.txt"
   # wd <- "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline"
@@ -35,6 +35,10 @@ make_atlas_run <- function(input.data.path, wd, atlas_name){
   make_atlas.loc <- paste0(slurm.files.dir, "/make_atlas.Rdata")
   save("make_atlas", file=make_atlas.loc)
 
+  if (mode == "local") {
+    make_atlas(paths)
+    print(paste0("Running ... make_atlas for ", atlas_name, " (local mode)."))
+  } else {
   # Create a sample-specific directory for this atlas if it does not exist
   if(!dir.exists(paste0(slurm.files.dir, "/", atlas_name))){
     dir.create(paste0(slurm.files.dir, "/", atlas_name))
@@ -98,6 +102,7 @@ make_atlas_run <- function(input.data.path, wd, atlas_name){
 
   # Print a message indicating that the job was submitted
   print(paste0("Running ... ", "job for ", atlas_name, " submitted."))
+  } # end slurm branch
 
 }
 

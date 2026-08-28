@@ -1,0 +1,10 @@
+# IPAseek generated files
+ipaseek.env
+test_results/
+results/
+pelt/results/
+2_gene_preprocessing/3_gene_expression/results/
+2_gene_preprocessing/3_gene_expression/logs/
+# OS files
+.DS_Store
+._*

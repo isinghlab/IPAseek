@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use IPAseek in your research, please cite the following paper."
+title: "IPAseek"
+version: "1.0.0"
+date-released: "2026-03-13"
+url: "https://github.com/richarashmivats/IPAseek"
+repository-code: "https://github.com/richarashmivats/IPAseek"
+license: MIT
+authors:
+  - family-names: "Rashmi"
+    given-names: "Richa"
+    orcid: ""
+    affiliation: ""
+preferred-citation:
+  type: article
+  title: "Dynamics of intronic polyadenylation in the hematopoietic lineage and its regulation by DNA methylation."
+  journal: "Genome Research"
+  volume: 36
+  issue: 7
+  start: 1250
+  year: 2026
+  url: "https://genome.cshlp.org/content/36/6/1250"
+  authors:
+    - family-names: "Rashmi"
+      given-names: "Richa"
+abstract: >
+  IPAseek is a bioinformatics pipeline to detect intronic polyadenylation (IPA)
+  sites from RNA-seq datasets. It identifies locations within gene introns where
+  premature polyadenylation occurs, quantifies IPA usage across samples, and
+  produces a SummarizedExperiment object for downstream analysis. The pipeline
+  runs on SLURM-based HPC clusters and uses PELT changepoint detection on
+  per-base genomic coverage signals to identify IPA events.
+keywords:
+  - bioinformatics
+  - RNA-seq
+  - intronic polyadenylation
+  - polyadenylation
+  - genomics
+  - transcriptomics
+  - PELT
+  - changepoint detection
+  - SummarizedExperiment
+  - SLURM

@@ -6,11 +6,20 @@ library(parallel)
 
 # ######################################
 # STAR
-# Indexes on the shared data 
-star.indexes <- c(hg19 = '/scratch/user/richa.rashmi.1202/genomes/homosapiens/ucsc/hg19/sequence/starindex',
-	hg38 = '/scratch/user/richa.rashmi.1202/genomes/homosapiens/ucsc/hg38/sequence/starindex')
+# Read STAR index from environment variable set by setup.sh
+# Falls back to the named vector for backward compatibility
+star_index_env <- Sys.getenv("IPASEEK_STAR_INDEX", unset = "")
+if (nchar(star_index_env) > 0) {
+  star.indexes <- c(hg38 = star_index_env, hg19 = star_index_env)
+} else {
+  # Legacy fallback — update these paths for your cluster
+  star.indexes <- c(
+    hg19 = '/path/to/hg19/STARIndex',
+    hg38 = '/path/to/hg38/STARIndex'
+  )
+}
 
-pushSTAR <- function(dt.location, ncores = 24, additional.args = NULL){
+pushSTAR <- function(dt.location, ncores = 24, additional.args = NULL, mode = "slurm"){
 
 	# dt.location = "/scratch/user/richa.rashmi.1202/ipa/IPAseek_pipeline/data_tables/data_table_CLL11.txt"
 	# ncores = 24
@@ -111,6 +120,21 @@ pushSTAR <- function(dt.location, ncores = 24, additional.args = NULL){
 			dir.create(output.dir)
 			cd.cmd <- sprintf("cd %s", output.dir)
 		
+			if (mode == "local") {
+				# Run STAR directly in-process (no SLURM)
+				old.wd <- getwd()
+				setwd(output.dir)
+				system(star.cmd)
+				system(index.cmd)
+				system(star.bg.cmd)
+				system(mv.bg.cmd1)
+				system(zip.bg.cmd1)
+				system(mv.bg.cmd2)
+				system(zip.bg.cmd2)
+				system(mv.bam.cmd)
+				system(mv.bai.cmd)
+				setwd(old.wd)
+			} else {
 			bash.file.location <- file.path(output.dir, paste0(output.file, ".sh"))
 			file.conn <- file(bash.file.location)
     		writeLines(c('#!/bin/bash', cd.cmd, star.cmd, index.cmd, 
@@ -119,7 +143,8 @@ pushSTAR <- function(dt.location, ncores = 24, additional.args = NULL){
 			close(file.conn)
 	
 			system(sprintf("chmod u+x %s", bash.file.location))
-			system(sprintf("sbatch --nodes=1 --ntasks-per-node=8 --mem=56G --time=08:00:00 %s", bash.file.location))			
+			system(sprintf("sbatch --nodes=1 --ntasks-per-node=8 --mem=56G --time=08:00:00 %s", bash.file.location))
+			} # end slurm branch
 		} else {
 			return(NULL)
 		}
@@ -236,7 +261,7 @@ ReadRNASeqBam <- function(genome, bam.file, grl.gene.annotation, gr.exon.annotat
 #2. exon.annotation <- GRanges of exons
 ####################################################################################################
 
-runCDSCounts <- function(project.dir, dt.location, count.obj.dir = NULL) {
+runCDSCounts <- function(project.dir, dt.location, count.obj.dir = NULL, mode = "slurm") {
 
   # dt.location <- datainfo.location_uniq
 
@@ -297,6 +322,18 @@ runCDSCounts <- function(project.dir, dt.location, count.obj.dir = NULL) {
               
               bam.file.location <- file.path(bam.file.dir, all.bam.files[bam.file.logical])
               
+              if (mode == "local") {
+                # Run gene counts directly (source and call the counting script's logic)
+                source(file.path(project.dir, "2_gene_preprocessing", "1_rnaseq_pipeline", "countGeneExpression.R"))
+                runGeneCounts(
+                  genome_name  = genome.name,
+                  sample_name  = sample.name,
+                  bam_file     = bam.file.location,
+                  save_location = count.obj.dir,
+                  paired       = paired,
+                  project.dir  = project.dir
+                )
+              } else {
               sbatch.cmd <- sprintf(
                 paste0("sbatch --export=genome_name=%s,sample_name=%s,bam_file=%s,save_location=%s,paired=%s %s/2_gene_preprocessing/1_rnaseq_pipeline/run_gene_counts.sh"),
                 genome.name, sample.name, bam.file.location, count.obj.dir, paired, project.dir
@@ -306,6 +343,7 @@ runCDSCounts <- function(project.dir, dt.location, count.obj.dir = NULL) {
               if(exit_code != 0) {
                 stop(paste("SLURM submission failed for sample:", sample.name))
               }
+              } # end slurm branch
 
 
       })
